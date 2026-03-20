@@ -1,0 +1,93 @@
+# SolarFlow Pro
+
+Solar panel sales dialer — script-guided calling, AI roof analysis, automated WhatsApp follow-up.
+
+## Branches
+
+| Branch | Description |
+|--------|-------------|
+| `main` | Production — v2 (AI Roof + ROI Calculator + WhatsApp) |
+| `v1`   | Phase 1 — manual phone trial, fewer API keys needed |
+
+Start with v1: `git checkout v1`
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | React 18 + Vite + Zustand |
+| Backend | FastAPI (Python 3.12) |
+| Database | Supabase (PostgreSQL + Auth + RLS) |
+| Maps | Bing Maps Embed API |
+| AI (v2) | Google Solar API |
+| WhatsApp (v2) | 360dialog WhatsApp Business API |
+| CI/CD | GitHub Actions → Railway + Vercel |
+
+## Local setup (no Docker)
+
+### 1. Database
+Run `supabase/schema.sql` in your Supabase SQL editor.
+For v2 also run `supabase/schema_v2_additions.sql`.
+
+### 2. Backend
+```bash
+cd backend
+cp .env.example .env
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+API docs: http://localhost:8000/api/docs
+
+### 3. Frontend
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+App: http://localhost:5173
+The Vite dev server proxies /api → localhost:8000 automatically — no CORS issues.
+
+## Local setup (Docker)
+```bash
+cp backend/.env.example backend/.env
+docker compose up --build
+```
+
+## Deployment
+
+**Backend → Railway**
+1. New project at railway.app → connect GitHub repo → root: `backend/`
+2. Add all variables from `backend/.env.example` under Variables
+3. Auto-deploys on every push to `main`
+
+**Frontend → Vercel**
+1. Import repo at vercel.com → root: `frontend/`
+2. Add `VITE_BING_MAPS_KEY` and `VITE_API_URL` (your Railway URL)
+3. Auto-deploys on every push to `main`
+
+**GitHub Actions secrets** (Settings → Secrets → Actions):
+```
+SUPABASE_URL, SUPABASE_KEY, SUPABASE_ANON_KEY
+CREDENTIAL_ENCRYPTION_KEY
+GOOGLE_SOLAR_API_KEY, GOOGLE_GEOCODING_KEY   (v2)
+WHATSAPP_360DIALOG_KEY                        (v2)
+VITE_BING_MAPS_KEY, VITE_API_URL
+RAILWAY_TOKEN
+VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+```
+
+## Key rules
+
+**Address privacy** — Agents never see the original address. They type what the prospect says during the call. Saves to `street_verified` columns — original is preserved for admin comparison.
+
+**Concurrent locking** — `FOR UPDATE SKIP LOCKED` in PostgreSQL ensures two agents can never get the same contact simultaneously.
+
+**Rate limit** — Default 45s between contacts. Configurable:
+```sql
+UPDATE organizations SET contact_interval_sec = 30 WHERE id = '<uuid>';
+UPDATE campaigns    SET contact_interval_sec = 20 WHERE id = '<uuid>';
+```
+Range: 10–300 seconds.
+
+**Trial** — 7 days free, agent uses own phone, no Twilio needed. All CRM/script/map features work. Auto-dial and recording require paid plan.
