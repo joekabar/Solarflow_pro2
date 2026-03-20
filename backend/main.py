@@ -19,11 +19,14 @@ from db import get_supabase
 
 import os
 
-load_dotenv()  # This searches for a .env file and loads it
+load_dotenv()
+
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+origins = [o.strip() for o in cors_origins.split(",")]
 
 app = FastAPI(title="SolarFlow Pro API", version="2.0.0", docs_url="/api/docs")
 app.add_middleware(CORSMiddleware,
-    allow_origins=["http://localhost:5173","https://app.solarflowpro.com"],
+    allow_origins=origins,
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(auth_router,     prefix="/api/auth")
