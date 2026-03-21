@@ -124,38 +124,54 @@ async def get_next_contact(
 
 
 def _check_calling_hours(campaign_id: str, db) -> None:
-    """
-    Blocks dialing outside the campaign's configured calling hours.
-    Default: 09:00 – 20:00 local time.
-    """
-    campaign = db.table("campaigns")\
-        .select("calling_hours_start, calling_hours_end, country")\
-        .eq("id", campaign_id)\
-        .maybe_single()\
-        .execute()
+    try:
+        result = db.table("campaigns") \
+            .select("calling_hours_start, calling_hours_end, country") \
+            .eq("id", campaign_id) \
+            .execute()
 
-    if not campaign.data:
-        return   # No campaign found — let it through, log warning
+        if not result or not result.data:
+            return
 
-    now_utc   = datetime.now(timezone.utc)
-    now_hour  = now_utc.hour   # TODO: convert to campaign country timezone
-    now_time  = now_utc.strftime("%H:%M")
+        campaign_data = result.data[0]
+    except Exception as e:
+        print(f"[calling_hours] Error reading campaign: {e}")
+        return
 
-    start = campaign.data.get("calling_hours_start", "09:00")
-    end   = campaign.data.get("calling_hours_end",   "20:00")
+    now_utc = datetime.now(timezone.utc)
+    now_time = now_utc.strftime("%H:%M")
+
+    start = campaign_data.get("calling_hours_start", "09:00")
+    end = campaign_data.get("calling_hours_end", "20:00")
+
+    # Handle time format with seconds (09:00:00 → 09:00)
+    if start and len(start) > 5:
+        start = start[:5]
+    if end and len(end) > 5:
+        end = end[:5]
 
     if not (start <= now_time <= end):
         raise HTTPException(
             403,
             {
-                "error":   "outside_calling_hours",
-                "message": f"Calling is only allowed between {start} and {end}.",
+                "error": "outside_calling_hours",
+                "message": f"Bellen is alleen toegestaan tussen {start} en {end}.",
                 "current_time": now_time,
             }
         )
 
 
 async def _release_agent_lock(agent_id: str, db) -> None:
+    try:
+        db.table("contacts").update({
+            "locked_by": None,
+            "locked_at": None,
+            "lock_expires_at": None,
+            "status": "available",
+        }).eq("locked_by", agent_id).eq("status", "locked").execute()
+    except Exception as e:
+        print(f"[release_lock] Error: {e}")
+        
     """
     Returns any locked-but-not-called contacts back to 'available'.
     This handles browser crashes and network drops gracefully.
