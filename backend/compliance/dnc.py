@@ -36,10 +36,9 @@ async def is_on_dnc(phone: str, org_id: str, db) -> bool:
         .select("id")\
         .eq("org_id", org_id)\
         .eq("phone", normalised)\
-        .maybe_single()\
         .execute()
 
-    return result.data is not None
+    return bool(result.data)
 
 
 class AddDNCRequest(BaseModel):
