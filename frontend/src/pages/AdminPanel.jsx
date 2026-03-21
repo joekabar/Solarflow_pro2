@@ -1,10 +1,11 @@
 // frontend/src/pages/AdminPanel.jsx
-// Admin panel — users, campaigns, billing, scripts, reports
-// Campaigns tab is now fully functional. Other tabs are placeholders.
+// Admin panel — users, campaigns, contacts, scripts, reports
+// Campaigns and Contacts tabs are now functional. Others are placeholders.
 
 import { useState } from 'react'
 import { useAgentStore } from '../store/agentStore'
 import CampaignsTab from '../components/admin/CampaignsTab'
+import ContactsTab  from '../components/admin/ContactsTab'
 
 const TABS = [
   { id: 'users',     label: 'Users'     },
@@ -16,10 +17,9 @@ const TABS = [
 ]
 
 const PLACEHOLDERS = {
-  users:    { title: 'User management',   desc: 'Invite agents, supervisors, and clients. Assign roles and manage access. Full implementation in Phase 4.' },
-  contacts: { title: 'Contacts & leads',  desc: 'Import CSV/Excel lead files, view all contacts, manage DNC list, and compare original vs verified addresses. Import available now via API.' },
-  scripts:  { title: 'Call scripts',      desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
-  reports:  { title: 'Reports',           desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
+  users:   { title: 'User management',  desc: 'Invite agents, supervisors, and clients. Assign roles and manage access. Full implementation in Phase 4.' },
+  scripts: { title: 'Call scripts',      desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
+  reports: { title: 'Reports',           desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
 }
 
 export default function AdminPanel() {
@@ -41,9 +41,8 @@ export default function AdminPanel() {
   }
 
   function renderContent() {
-    if (tab === 'campaigns') {
-      return <CampaignsTab />
-    }
+    if (tab === 'campaigns') return <CampaignsTab />
+    if (tab === 'contacts')  return <ContactsTab />
 
     if (tab === 'settings') {
       return (
