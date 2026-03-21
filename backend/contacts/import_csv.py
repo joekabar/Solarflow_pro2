@@ -137,8 +137,9 @@ async def import_contacts(
                 stats["imported"] += len(batch)
                 batch = []
 
-        except Exception:
+        except Exception as e:
             stats["errors"] += 1
+            print(f"[import] Row error: {e}")
 
     # Insert remaining batch
     if batch:
