@@ -6,11 +6,15 @@
 //   - LeftNav (icon sidebar)
 //   - 4-tab workspace: Map · Phone · Contact Form · Agenda
 //   - StatusBar (AI status, campaign stats, compliance)
+//
+// Auto-loads the first active campaign on mount so
+// "Get next contact" works immediately.
 
 import { useState, useEffect, useRef } from 'react'
 import { useAgentStore }    from '../store/agentStore'
 import { useCallStore }     from '../store/callStore'
 import { useCampaignStore } from '../store/campaignStore'
+import { api }              from '../hooks/api'
 import TopBar      from '../components/common/TopBar'
 import LeftNav     from '../components/common/LeftNav'
 import StatusBar   from '../components/common/StatusBar'
@@ -29,9 +33,30 @@ const TABS = [
 
 export default function AgentWorkspace() {
   const [activeTab, setActiveTab] = useState('map')
+  const [campaignError, setCampaignError] = useState('')
   const { user }                  = useAgentStore()
   const { contact, callStatus, callDurationSec, tickDuration } = useCallStore()
+  const { campaign, setCampaign } = useCampaignStore()
   const timerRef = useRef(null)
+
+  // ── Auto-load active campaign on mount ────────────────────
+  useEffect(() => {
+    if (campaign) return  // already loaded
+    async function loadCampaign() {
+      try {
+        const res = await api.get('/campaigns/active')
+        if (res.campaigns && res.campaigns.length > 0) {
+          setCampaign(res.campaigns[0])
+          setCampaignError('')
+        } else {
+          setCampaignError('Geen actieve campagne gevonden. Vraag je admin om een campagne aan te maken.')
+        }
+      } catch (e) {
+        setCampaignError('Kan campagne niet laden.')
+      }
+    }
+    loadCampaign()
+  }, [campaign, setCampaign])
 
   // Call duration timer — ticks every second while a call is active
   useEffect(() => {
@@ -60,12 +85,15 @@ export default function AgentWorkspace() {
                fontWeight: active ? '500' : '400', whiteSpace: 'nowrap',
              }),
     content: { flex: 1, overflow: 'hidden' },
+    alert:   { margin: '12px', padding: '10px 14px', background: 'var(--color-background-warning)', color: 'var(--color-text-warning)', borderRadius: 8, fontSize: 12 },
   }
 
   return (
     <div style={s.wrap}>
       <TrialBanner daysRemaining={user?.trial_days_remaining} />
       <TopBar />
+
+      {campaignError && <div style={s.alert}>{campaignError}</div>}
 
       <div style={s.body}>
         <LeftNav />

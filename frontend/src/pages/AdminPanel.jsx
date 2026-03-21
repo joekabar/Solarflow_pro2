@@ -1,9 +1,10 @@
 // frontend/src/pages/AdminPanel.jsx
 // Admin panel — users, campaigns, billing, scripts, reports
-// Full implementation in Phase 4. Navigation structure is ready.
+// Campaigns tab is now fully functional. Other tabs are placeholders.
 
 import { useState } from 'react'
 import { useAgentStore } from '../store/agentStore'
+import CampaignsTab from '../components/admin/CampaignsTab'
 
 const TABS = [
   { id: 'users',     label: 'Users'     },
@@ -14,8 +15,15 @@ const TABS = [
   { id: 'settings',  label: 'Settings'  },
 ]
 
+const PLACEHOLDERS = {
+  users:    { title: 'User management',   desc: 'Invite agents, supervisors, and clients. Assign roles and manage access. Full implementation in Phase 4.' },
+  contacts: { title: 'Contacts & leads',  desc: 'Import CSV/Excel lead files, view all contacts, manage DNC list, and compare original vs verified addresses. Import available now via API.' },
+  scripts:  { title: 'Call scripts',      desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
+  reports:  { title: 'Reports',           desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
+}
+
 export default function AdminPanel() {
-  const [tab, setTab]  = useState('users')
+  const [tab, setTab]  = useState('campaigns')
   const { user }       = useAgentStore()
 
   const s = {
@@ -32,16 +40,33 @@ export default function AdminPanel() {
     desc:  { fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 },
   }
 
-  const content = {
-    users:     { title: 'User management',   desc: 'Invite agents, supervisors, and clients. Assign roles and manage access. Full implementation in Phase 4.' },
-    campaigns: { title: 'Campaigns',         desc: 'Create and manage calling campaigns. Configure rate limits, calling hours, and assign lead pools. Full implementation in Phase 2.' },
-    contacts:  { title: 'Contacts & leads',  desc: 'Import CSV/Excel lead files, view all contacts, manage DNC list, and compare original vs verified addresses. Import available now via API.' },
-    scripts:   { title: 'Call scripts',      desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
-    reports:   { title: 'Reports',           desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
-    settings:  { title: 'Settings',          desc: `Organisation: ${user?.org_name || '—'} | Plan: ${user?.plan || '—'} | Country: ${user?.country || '—'}. Billing and subscription management in Phase 4.` },
-  }
+  function renderContent() {
+    if (tab === 'campaigns') {
+      return <CampaignsTab />
+    }
 
-  const cur = content[tab]
+    if (tab === 'settings') {
+      return (
+        <div style={s.card}>
+          <div style={s.title}>Settings</div>
+          <div style={s.desc}>
+            Organisation: {user?.org_name || '—'} | Plan: {user?.plan || '—'} | Country: {user?.country || '—'}.
+            Billing and subscription management in Phase 4.
+          </div>
+        </div>
+      )
+    }
+
+    const cur = PLACEHOLDERS[tab]
+    if (!cur) return null
+
+    return (
+      <div style={s.card}>
+        <div style={s.title}>{cur.title}</div>
+        <div style={s.desc}>{cur.desc}</div>
+      </div>
+    )
+  }
 
   return (
     <div style={s.wrap}>
@@ -58,10 +83,7 @@ export default function AdminPanel() {
         ))}
       </div>
       <div style={s.body}>
-        <div style={s.card}>
-          <div style={s.title}>{cur.title}</div>
-          <div style={s.desc}>{cur.desc}</div>
-        </div>
+        {renderContent()}
       </div>
     </div>
   )

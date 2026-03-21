@@ -13,13 +13,12 @@ from dialer.lock_cleanup  import release_expired_locks
 from contacts.import_csv  import router as import_router
 from compliance.dnc       import router as dnc_router
 from ai.roi_calculator    import router as roi_router
+from campaigns.campaigns_api import router as campaigns_router
 from auth.role_guard      import require_role
 from ai.roof_intelligence import get_or_analyse_roof
 from db import get_supabase
 
 import os
-
-load_dotenv()
 
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173")
 origins = [o.strip() for o in cors_origins.split(",")]
@@ -29,12 +28,13 @@ app.add_middleware(CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-app.include_router(auth_router,     prefix="/api/auth")
-app.include_router(dialer_router,   prefix="/api/dialer")
-app.include_router(complete_router, prefix="/api/dialer")
-app.include_router(import_router,   prefix="/api/contacts")
-app.include_router(dnc_router,      prefix="/api/compliance")
-app.include_router(roi_router,      prefix="/api/ai")
+app.include_router(auth_router,       prefix="/api/auth")
+app.include_router(dialer_router,     prefix="/api/dialer")
+app.include_router(complete_router,   prefix="/api/dialer")
+app.include_router(import_router,     prefix="/api/contacts")
+app.include_router(dnc_router,        prefix="/api/compliance")
+app.include_router(roi_router,        prefix="/api/ai")
+app.include_router(campaigns_router,  prefix="/api")
 
 class RoofRequest(BaseModel):
     contact_id: str; address: str; country: str = "BE"

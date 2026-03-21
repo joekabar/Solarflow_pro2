@@ -80,7 +80,7 @@ async def signup(body: SignupRequest, db=Depends(get_supabase)):
     Creates a new trial account.
     1. Creates Supabase auth user
     2. Creates organization (trial plan, 7-day expiry)
-    3. Creates user_profile as admin
+    3. Creates user_profile as AGENT (so they immediately experience the calling workflow)
     No credit card required.
     """
     # 1. Create auth user
@@ -103,11 +103,12 @@ async def signup(body: SignupRequest, db=Depends(get_supabase)):
 
     org_id = org.data[0]["id"]
 
-    # 3. Create user profile as admin of their own org
+    # 3. Create user profile as AGENT (not admin)
+    # Trial users should immediately experience the agent calling workflow.
     db.table("user_profiles").insert({
         "id":        user.id,
         "org_id":    org_id,
-        "role":      "admin",
+        "role":      "agent",
         "full_name": body.full_name,
     }).execute()
 
