@@ -4,17 +4,8 @@ backend/dialer/rate_limiter.py
 Enforces the minimum wait between contacts per agent.
 
 Default: 45 seconds (configurable per org and per campaign).
-Range:   10 seconds (minimum) to 300 seconds (5 minutes maximum).
-
-Why 45 seconds?
-  After a call ends, the agent needs time to:
-  - Fill in the contact form and save outcome
-  - Enter the verified address
-  - Make notes
-  - Mentally prepare for the next call
-  45 seconds is a realistic baseline. Fast agents will hit it;
-  slow agents won't notice it. Adjust down to 20-30s for
-  experienced teams, up to 60-90s for complex products.
+Range:   0 seconds (no limit) to 3600 seconds (1 hour).
+Set to 0 to disable rate limiting entirely.
 
 The interval can be changed:
   1. Per org:      organizations.contact_interval_sec
@@ -36,6 +27,7 @@ async def get_effective_interval(
     Returns the effective rate limit interval in seconds.
     Campaign-level setting overrides org-level.
     Falls back to org default, then to 45s hardcoded default.
+    Returns 0 if rate limiting is disabled.
     """
     campaign = db.table("campaigns")\
         .select("contact_interval_sec")\
@@ -43,10 +35,10 @@ async def get_effective_interval(
         .maybe_single()\
         .execute()
 
-    if campaign.data and campaign.data.get("contact_interval_sec"):
+    if campaign.data and campaign.data.get("contact_interval_sec") is not None:
         return campaign.data["contact_interval_sec"]
 
-    return org_interval or 45
+    return org_interval if org_interval is not None else 45
 
 
 async def check_rate_limit(
@@ -63,6 +55,10 @@ async def check_rate_limit(
         {"can_proceed": False, "wait_seconds": 32.4}
     """
     interval = await get_effective_interval(campaign_id, org_interval, db)
+
+    # If interval is 0, rate limiting is disabled
+    if interval == 0:
+        return {"can_proceed": True, "wait_seconds": 0, "interval": 0}
 
     # Find this agent's most recent contact view for this campaign
     last = db.table("contact_view_log")\
