@@ -1,88 +1,77 @@
 // frontend/src/pages/AdminPanel.jsx
-// Admin panel — users, campaigns, contacts, scripts, reports, settings
-// Users, Campaigns, and Contacts tabs are functional. Others are placeholders.
+// ──────────────────────────────────
+// Admin dashboard for a single org. Shows company branding.
 
-import { useState } from 'react'
-import { useAgentStore } from '../store/agentStore'
-import UsersTab     from '../components/admin/UsersTab'
-import CampaignsTab from '../components/admin/CampaignsTab'
-import ContactsTab  from '../components/admin/ContactsTab'
+import { useState }          from 'react'
+import { useAgentStore }     from '../store/agentStore'
+import { useBranding }       from '../context/BrandingProvider'
+import { useNavigate }       from 'react-router-dom'
+import { api }               from '../hooks/api'
+import CampaignsTab          from '../components/admin/CampaignsTab'
+import ContactsTab           from '../components/admin/ContactsTab'
+import UsersTab              from '../components/admin/UsersTab'
 
-const TABS = [
-  { id: 'users',     label: 'Users'     },
-  { id: 'campaigns', label: 'Campaigns' },
-  { id: 'contacts',  label: 'Contacts'  },
-  { id: 'scripts',   label: 'Scripts'   },
-  { id: 'reports',   label: 'Reports'   },
-  { id: 'settings',  label: 'Settings'  },
-]
-
-const PLACEHOLDERS = {
-  scripts: { title: 'Call scripts',  desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
-  reports: { title: 'Reports',       desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
-}
+const TABS = ['Users', 'Campaigns', 'Contacts', 'Scripts', 'Reports', 'Settings']
 
 export default function AdminPanel() {
-  const [tab, setTab]  = useState('campaigns')
-  const { user }       = useAgentStore()
+  const [activeTab, setActiveTab] = useState('Campaigns')
+  const { user, clearUser }       = useAgentStore()
+  const { displayName, logoUrl, primaryColor } = useBranding()
+  const navigate                  = useNavigate()
 
-  const s = {
-    wrap:  { display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--color-background-tertiary)' },
-    hdr:   { background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '0 24px', display: 'flex', alignItems: 'center', gap: 8, height: 46 },
-    logo:  { fontWeight: 500, fontSize: 14, color: 'var(--color-text-primary)' },
-    sp:    { flex: 1 },
-    role:  { fontSize: 12, color: 'var(--color-text-secondary)' },
-    tabs:  { display: 'flex', gap: 0, background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '0 24px' },
-    tab:   (a) => ({ padding: '9px 14px', fontSize: 13, cursor: 'pointer', borderBottom: a ? '2px solid #3b82f6' : '2px solid transparent', color: a ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontWeight: a ? 500 : 400 }),
-    body:  { flex: 1, padding: '24px', overflowY: 'auto' },
-    card:  { background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '24px' },
-    title: { fontSize: 16, fontWeight: 500, marginBottom: 8 },
-    desc:  { fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 },
+  async function logout() {
+    try { await api.post('/auth/logout') } catch {}
+    clearUser()
+    navigate('/login')
   }
 
-  function renderContent() {
-    if (tab === 'users')     return <UsersTab />
-    if (tab === 'campaigns') return <CampaignsTab />
-    if (tab === 'contacts')  return <ContactsTab />
-
-    if (tab === 'settings') {
-      return (
-        <div style={s.card}>
-          <div style={s.title}>Settings</div>
-          <div style={s.desc}>
-            Organisation: {user?.org_name || '—'} | Plan: {user?.plan || '—'} | Country: {user?.country || '—'}.
-            Billing and subscription management in Phase 4.
-          </div>
-        </div>
-      )
-    }
-
-    const cur = PLACEHOLDERS[tab]
-    if (!cur) return null
-    return (
-      <div style={s.card}>
-        <div style={s.title}>{cur.title}</div>
-        <div style={s.desc}>{cur.desc}</div>
-      </div>
-    )
+  const s = {
+    page:    { minHeight:'100vh', background:'var(--color-background-tertiary, #f5f5f0)' },
+    header:  { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 20px', height:50, background:'var(--color-background-primary, #fff)', borderBottom:'0.5px solid var(--color-border-tertiary, #e5e5e0)' },
+    brand:   { display:'flex', alignItems:'center', gap:8 },
+    logoBox: { width:26, height:26, background:primaryColor, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center' },
+    name:    { fontSize:14, fontWeight:500 },
+    dash:    { fontSize:12, color:'var(--color-text-secondary, #888)', marginLeft:4 },
+    info:    { display:'flex', alignItems:'center', gap:8, fontSize:12, color:'var(--color-text-secondary, #888)' },
+    btn:     { padding:'4px 10px', borderRadius:6, border:'0.5px solid var(--color-border-secondary, #ccc)', background:'transparent', fontSize:11, cursor:'pointer', color:'var(--color-text-secondary, #888)' },
+    tabs:    { display:'flex', gap:0, background:'var(--color-background-primary, #fff)', borderBottom:'0.5px solid var(--color-border-tertiary, #e5e5e0)', padding:'0 20px' },
+    tab:     (active) => ({ padding:'10px 14px', fontSize:12, cursor:'pointer', borderBottom: active ? `2px solid ${primaryColor}` : '2px solid transparent', color: active ? 'var(--color-text-primary, #1a1a1a)' : 'var(--color-text-secondary, #888)', fontWeight: active ? 500 : 400, background:'transparent', border:'none', borderBottomWidth:2, borderBottomStyle:'solid', borderBottomColor: active ? primaryColor : 'transparent' }),
+    body:    { padding:20 },
   }
 
   return (
-    <div style={s.wrap}>
-      <div style={s.hdr}>
-        <span style={s.logo}>SolarFlow Pro — Admin</span>
-        <div style={s.sp} />
-        <span style={s.role}>{user?.full_name} · {user?.role}</span>
+    <div style={s.page}>
+      <div style={s.header}>
+        <div style={s.brand}>
+          {logoUrl ? (
+            <img src={logoUrl} alt="" style={{ height:26, maxWidth:100, objectFit:'contain' }}/>
+          ) : (
+            <div style={s.logoBox}>
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><polygon points="6,1 11,10 1,10" fill="white" opacity="0.9"/></svg>
+            </div>
+          )}
+          <span style={s.name}>{displayName}</span>
+          <span style={s.dash}>— Admin</span>
+        </div>
+        <div style={s.info}>
+          <span>{user?.full_name} · {user?.role}</span>
+          <button style={s.btn} onClick={logout}>Uitloggen</button>
+        </div>
       </div>
+
       <div style={s.tabs}>
         {TABS.map(t => (
-          <div key={t.id} style={s.tab(tab === t.id)} onClick={() => setTab(t.id)}>
-            {t.label}
-          </div>
+          <button key={t} style={s.tab(activeTab === t)} onClick={() => setActiveTab(t)}>{t}</button>
         ))}
       </div>
+
       <div style={s.body}>
-        {renderContent()}
+        {activeTab === 'Users'     && <UsersTab />}
+        {activeTab === 'Campaigns' && <CampaignsTab />}
+        {activeTab === 'Contacts'  && <ContactsTab />}
+        {activeTab === 'Scripts'   && <div style={{ color:'#888', padding:40, textAlign:'center', fontSize:13 }}>Scriptbeheer — komt in Sprint 4</div>}
+        {activeTab === 'Reports'   && <div style={{ color:'#888', padding:40, textAlign:'center', fontSize:13 }}>Rapportage — komt in Sprint 5</div>}
+        {activeTab === 'Settings'  && <div style={{ color:'#888', padding:40, textAlign:'center', fontSize:13 }}>Instellingen — komt later</div>}
       </div>
     </div>
   )

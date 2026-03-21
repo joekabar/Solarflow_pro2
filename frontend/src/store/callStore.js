@@ -1,21 +1,35 @@
+// frontend/src/store/callStore.js
+// ─────────────────────────────────
+// Stores current call state — contact, status, duration.
+
 import { create } from 'zustand'
 
-export const useCallStore = create((set) => ({
-  contact:         null,
-  callStatus:      'idle',
-  callStartedAt:   null,
+export const useCallStore = create((set, get) => ({
+  contact: null,
+  callStatus: 'idle',       // idle | active | wrapup
   callDurationSec: 0,
-  scriptStep:      'intro',
-  scriptHistory:   [],
-  waitSeconds:     0,
+  callStartedAt: null,
+  _timer: null,
 
-  setContact:    (contact) => set({ contact, callStatus: 'active', callStartedAt: Date.now() }),
-  clearContact:  ()        => set({ contact: null, callStatus: 'idle', callStartedAt: null, callDurationSec: 0, scriptStep: 'intro', scriptHistory: [] }),
-  setCallStatus: (status)  => set({ callStatus: status }),
-  setScriptStep: (step, branchLabel) => set((state) => ({
-    scriptStep:    step,
-    scriptHistory: [...state.scriptHistory, { step: state.scriptStep, branch: branchLabel }],
-  })),
-  setWaitSeconds: (n)  => set({ waitSeconds: n }),
-  tickDuration:   ()   => set((state) => ({ callDurationSec: state.callDurationSec + 1 })),
+  setContact: (c) => set({ contact: c }),
+
+  startCall: () => {
+    const now = Date.now()
+    const timer = setInterval(() => {
+      set({ callDurationSec: Math.floor((Date.now() - now) / 1000) })
+    }, 1000)
+    set({ callStatus: 'active', callStartedAt: now, callDurationSec: 0, _timer: timer })
+  },
+
+  endCall: () => {
+    const { _timer } = get()
+    if (_timer) clearInterval(_timer)
+    set({ callStatus: 'wrapup', _timer: null })
+  },
+
+  resetCall: () => {
+    const { _timer } = get()
+    if (_timer) clearInterval(_timer)
+    set({ contact: null, callStatus: 'idle', callDurationSec: 0, callStartedAt: null, _timer: null })
+  },
 }))

@@ -1,20 +1,26 @@
+// frontend/src/store/agentStore.js
+// ─────────────────────────────────
+// Global user state. Persists to localStorage.
+
 import { create } from 'zustand'
 
-export const useAgentStore = create((set) => ({
-  user: null,
+function loadSession() {
+  try {
+    const raw = localStorage.getItem('sfp_session')
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
 
-  setUser: (userData) => {
-    localStorage.setItem('sfp_session', JSON.stringify(userData))
-    set({ user: userData })
+export const useAgentStore = create((set) => ({
+  user: loadSession(),
+
+  setUser: (data) => {
+    localStorage.setItem('sfp_session', JSON.stringify(data))
+    set({ user: data })
   },
 
   clearUser: () => {
     localStorage.removeItem('sfp_session')
     set({ user: null })
   },
-
-  setTrialDays: (days) =>
-    set((state) => ({
-      user: state.user ? { ...state.user, trial_days_remaining: days } : null
-    })),
 }))

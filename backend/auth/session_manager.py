@@ -1,7 +1,7 @@
 """
 backend/auth/session_manager.py
 ─────────────────────────────────
-Login, logout, and token refresh endpoints.
+Login, logout, and token refresh. Returns branding on login.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -35,7 +35,7 @@ async def login(body: LoginRequest, db=Depends(get_supabase)):
 
     try:
         profile = db.table("user_profiles") \
-            .select("role, full_name, org_id, is_platform_admin, organizations(name, plan, trial_ends_at, contact_interval_sec)") \
+            .select("role, full_name, org_id, is_platform_admin, organizations(name, display_name, plan, trial_ends_at, contact_interval_sec, logo_url, primary_color)") \
             .eq("id", user.id) \
             .single() \
             .execute()
@@ -63,13 +63,17 @@ async def login(body: LoginRequest, db=Depends(get_supabase)):
             "trial_ends_at":        org.get("trial_ends_at"),
             "contact_interval_sec": org.get("contact_interval_sec", 45),
             "is_platform_admin":    p.get("is_platform_admin", False),
+            "branding": {
+                "display_name":  org.get("display_name") or org["name"],
+                "logo_url":      org.get("logo_url"),
+                "primary_color": org.get("primary_color", "#1d6fb8"),
+            },
         }
     }
 
 
 @router.post("/refresh")
 async def refresh_token(body: RefreshRequest, db=Depends(get_supabase)):
-    """Silently refreshes an expired access token."""
     try:
         response = db.auth.refresh_session(body.refresh_token)
         return {
@@ -82,7 +86,6 @@ async def refresh_token(body: RefreshRequest, db=Depends(get_supabase)):
 
 @router.post("/logout")
 async def logout(db=Depends(get_supabase)):
-    """Signs out the current session."""
     try:
         db.auth.sign_out()
     except Exception:

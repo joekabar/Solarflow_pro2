@@ -1,6 +1,6 @@
 // frontend/src/pages/LoginPage.jsx
 // ──────────────────────────────────
-// Login page only. No self-signup — users are invited by their admin.
+// Login only. Stores branding from API response.
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [error,   setError]   = useState('')
   const { setUser } = useAgentStore()
   const navigate    = useNavigate()
-
   const [form, setForm] = useState({ email: '', password: '' })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -30,13 +29,9 @@ export default function LoginPage() {
         refresh_token: res.refresh_token,
         ...res.user,
       })
-      // Platform admin → super admin dashboard
       const dest = res.user.is_platform_admin
         ? '/platform'
-        : {
-            admin: '/admin', supervisor: '/supervisor',
-            client: '/portal', agent: '/workspace',
-          }[res.user.role] || '/workspace'
+        : { admin: '/admin', supervisor: '/supervisor', client: '/portal', agent: '/workspace' }[res.user.role] || '/workspace'
       navigate(dest)
     } catch (err) {
       setError(err.message || 'Ongeldig e-mailadres of wachtwoord')
@@ -45,54 +40,36 @@ export default function LoginPage() {
     }
   }
 
-  const s = {
-    wrap:   { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-tertiary)' },
-    card:   { background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '32px', width: '100%', maxWidth: '400px' },
-    logo:   { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' },
-    sq:     { width: '28px', height: '28px', background: 'var(--color-background-info)', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    name:   { fontSize: '16px', fontWeight: '500', color: 'var(--color-text-primary)' },
-    title:  { fontSize: '18px', fontWeight: '500', color: 'var(--color-text-primary)', marginBottom: '4px' },
-    sub:    { fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '20px' },
-    label:  { display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' },
-    ltext:  { fontSize: '11px', color: 'var(--color-text-secondary)' },
-    input:  { padding: '8px 10px', border: '0.5px solid var(--color-border-secondary)', borderRadius: '7px', fontSize: '13px', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', width: '100%' },
-    btn:    { width: '100%', padding: '9px', borderRadius: '7px', border: 'none', background: '#1d6fb8', color: '#fff', fontSize: '13px', fontWeight: '500', cursor: 'pointer', marginTop: '4px' },
-    err:    { background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', borderRadius: '7px', padding: '8px 10px', fontSize: '12px', marginBottom: '12px' },
-    footer: { textAlign: 'center', fontSize: '11px', color: 'var(--color-text-tertiary)', marginTop: '20px', lineHeight: '1.5' },
-  }
-
   return (
-    <div style={s.wrap}>
-      <div style={s.card}>
-        <div style={s.logo}>
-          <div style={s.sq}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <polygon points="7,1 13,12 1,12" fill="white" opacity="0.9"/>
-            </svg>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f0' }}>
+      <div style={{ background: '#fff', border: '0.5px solid #e0ddd5', borderRadius: 12, padding: 32, width: '100%', maxWidth: 400 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <div style={{ width: 28, height: 28, background: '#1d6fb8', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polygon points="7,1 13,12 1,12" fill="white" opacity="0.9"/></svg>
           </div>
-          <span style={s.name}>SolarFlow Pro</span>
+          <span style={{ fontSize: 16, fontWeight: 500 }}>SolarFlow Pro</span>
         </div>
 
-        <div style={s.title}>Welkom terug</div>
-        <div style={s.sub}>Meld je aan bij je account</div>
+        <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 4 }}>Welkom terug</div>
+        <div style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>Meld je aan bij je account</div>
 
-        {error && <div style={s.err}>{error}</div>}
+        {error && <div style={{ background: '#fef2f2', color: '#b91c1c', borderRadius: 7, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
         <form onSubmit={handleLogin}>
-          <label style={s.label}>
-            <span style={s.ltext}>E-mailadres</span>
-            <input style={s.input} type="email" value={form.email} onChange={set('email')} required placeholder="jan@bedrijf.be"/>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+            <span style={{ fontSize: 11, color: '#888' }}>E-mailadres</span>
+            <input style={{ padding: '8px 10px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13 }} type="email" value={form.email} onChange={set('email')} required placeholder="jan@bedrijf.be"/>
           </label>
-          <label style={s.label}>
-            <span style={s.ltext}>Wachtwoord</span>
-            <input style={s.input} type="password" value={form.password} onChange={set('password')} required placeholder="••••••••" minLength={8}/>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+            <span style={{ fontSize: 11, color: '#888' }}>Wachtwoord</span>
+            <input style={{ padding: '8px 10px', border: '0.5px solid #ccc', borderRadius: 7, fontSize: 13 }} type="password" value={form.password} onChange={set('password')} required placeholder="••••••••" minLength={8}/>
           </label>
-          <button style={s.btn} type="submit" disabled={loading}>
+          <button style={{ width: '100%', padding: 9, borderRadius: 7, border: 'none', background: '#1d6fb8', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', marginTop: 4 }} type="submit" disabled={loading}>
             {loading ? 'Even geduld…' : 'Inloggen'}
           </button>
         </form>
 
-        <div style={s.footer}>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#aaa', marginTop: 20 }}>
           Geen account? Neem contact op met je bedrijfsbeheerder.
         </div>
       </div>
