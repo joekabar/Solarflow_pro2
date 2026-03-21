@@ -1,4 +1,4 @@
-"""SolarFlow Pro v2 — FastAPI Backend. Adds AI Roof, ROI Calculator, WhatsApp."""
+"""SolarFlow Pro v2 — FastAPI Backend."""
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI, Depends
@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import BaseModel
 
 from auth.session_manager import router as auth_router
+from auth.user_management import router as users_router
 from dialer.next_contact  import router as dialer_router
 from dialer.complete_call import router as complete_router
 from dialer.lock_cleanup  import release_expired_locks
@@ -29,6 +30,7 @@ app.add_middleware(CORSMiddleware,
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(auth_router,       prefix="/api/auth")
+app.include_router(users_router,      prefix="/api")
 app.include_router(dialer_router,     prefix="/api/dialer")
 app.include_router(complete_router,   prefix="/api/dialer")
 app.include_router(import_router,     prefix="/api/contacts")

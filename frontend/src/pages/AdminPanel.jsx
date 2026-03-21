@@ -1,9 +1,10 @@
 // frontend/src/pages/AdminPanel.jsx
-// Admin panel — users, campaigns, contacts, scripts, reports
-// Campaigns and Contacts tabs are now functional. Others are placeholders.
+// Admin panel — users, campaigns, contacts, scripts, reports, settings
+// Users, Campaigns, and Contacts tabs are functional. Others are placeholders.
 
 import { useState } from 'react'
 import { useAgentStore } from '../store/agentStore'
+import UsersTab     from '../components/admin/UsersTab'
 import CampaignsTab from '../components/admin/CampaignsTab'
 import ContactsTab  from '../components/admin/ContactsTab'
 
@@ -17,9 +18,8 @@ const TABS = [
 ]
 
 const PLACEHOLDERS = {
-  users:   { title: 'User management',  desc: 'Invite agents, supervisors, and clients. Assign roles and manage access. Full implementation in Phase 4.' },
-  scripts: { title: 'Call scripts',      desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
-  reports: { title: 'Reports',           desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
+  scripts: { title: 'Call scripts',  desc: 'Build and edit Dutch branching call scripts. Drag-and-drop script editor. Full implementation in Phase 3.' },
+  reports: { title: 'Reports',       desc: 'Campaign conversion rates, agent performance, call logs, and verified address quality dashboard. Full implementation in Phase 4.' },
 }
 
 export default function AdminPanel() {
@@ -41,6 +41,7 @@ export default function AdminPanel() {
   }
 
   function renderContent() {
+    if (tab === 'users')     return <UsersTab />
     if (tab === 'campaigns') return <CampaignsTab />
     if (tab === 'contacts')  return <ContactsTab />
 
@@ -58,7 +59,6 @@ export default function AdminPanel() {
 
     const cur = PLACEHOLDERS[tab]
     if (!cur) return null
-
     return (
       <div style={s.card}>
         <div style={s.title}>{cur.title}</div>
@@ -71,7 +71,7 @@ export default function AdminPanel() {
     <div style={s.wrap}>
       <div style={s.hdr}>
         <span style={s.logo}>SolarFlow Pro — Admin</span>
-        <div style={s.sp}/>
+        <div style={s.sp} />
         <span style={s.role}>{user?.full_name} · {user?.role}</span>
       </div>
       <div style={s.tabs}>
