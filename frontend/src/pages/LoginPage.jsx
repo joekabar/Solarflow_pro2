@@ -36,10 +36,13 @@ export default function LoginPage() {
         ...res.user,
       })
       // Route to correct page based on role
-      const dest = {
-        admin: '/admin', supervisor: '/supervisor',
-        client: '/portal', agent: '/workspace',
-      }[res.user.role] || '/workspace'
+      // Platform admin gets redirected to super admin dashboard
+      const dest = res.user.is_platform_admin
+        ? '/platform'
+        : {
+            admin: '/admin', supervisor: '/supervisor',
+            client: '/portal', agent: '/workspace',
+          }[res.user.role] || '/workspace'
       navigate(dest)
     } catch (err) {
       setError(err.message || 'Invalid email or password')

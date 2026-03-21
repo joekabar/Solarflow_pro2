@@ -2,7 +2,6 @@
 backend/auth/session_manager.py
 ─────────────────────────────────
 Login, logout, and token refresh endpoints.
-Supabase handles the actual auth — we just expose clean API routes.
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -27,12 +26,6 @@ class SignupRequest(BaseModel):
 
 @router.post("/login")
 async def login(body: LoginRequest, db=Depends(get_supabase)):
-    """
-    Authenticates the user with Supabase Auth.
-    Returns a JWT access token + the user's role and org info.
-    The frontend stores this token and sends it as 'Bearer <token>'
-    on every subsequent request.
-    """
     try:
         response = db.auth.sign_in_with_password({
             "email":    body.email,
@@ -44,9 +37,8 @@ async def login(body: LoginRequest, db=Depends(get_supabase)):
     user    = response.user
     session = response.session
 
-    # Load role + org for the frontend to use immediately
     profile = db.table("user_profiles")\
-        .select("role, full_name, org_id, organizations(name, plan, trial_ends_at, contact_interval_sec)")\
+        .select("role, full_name, org_id, is_platform_admin, organizations(name, plan, trial_ends_at, contact_interval_sec)")\
         .eq("id", user.id)\
         .single()\
         .execute()
@@ -61,29 +53,23 @@ async def login(body: LoginRequest, db=Depends(get_supabase)):
         "access_token":  session.access_token,
         "refresh_token": session.refresh_token,
         "user": {
-            "id":        user.id,
-            "email":     user.email,
-            "full_name": p["full_name"],
-            "role":      p["role"],
-            "org_id":    p["org_id"],
-            "org_name":  org["name"],
-            "plan":      org["plan"],
-            "trial_ends_at":     org.get("trial_ends_at"),
+            "id":                   user.id,
+            "email":                user.email,
+            "full_name":            p["full_name"],
+            "role":                 p["role"],
+            "org_id":               p["org_id"],
+            "org_name":             org["name"],
+            "plan":                 org["plan"],
+            "trial_ends_at":        org.get("trial_ends_at"),
             "contact_interval_sec": org.get("contact_interval_sec", 45),
+            "is_platform_admin":    p.get("is_platform_admin", False),
         }
     }
 
 
 @router.post("/signup")
 async def signup(body: SignupRequest, db=Depends(get_supabase)):
-    """
-    Creates a new trial account.
-    1. Creates Supabase auth user
-    2. Creates organization (trial plan, 7-day expiry)
-    3. Creates user_profile as AGENT (so they immediately experience the calling workflow)
-    No credit card required.
-    """
-    # 1. Create auth user
+    # Create auth user
     try:
         auth_response = db.auth.sign_up({
             "email":    body.email,
@@ -93,18 +79,16 @@ async def signup(body: SignupRequest, db=Depends(get_supabase)):
     except Exception as e:
         raise HTTPException(400, f"Signup failed: {str(e)}")
 
-    # 2. Create organization with 7-day trial
+    # Create organization with 7-day trial
     org = db.table("organizations").insert({
         "name":    body.org_name,
         "country": body.country,
         "plan":    "trial",
-        # trial_ends_at defaults to now() + 7 days in schema
     }).execute()
 
     org_id = org.data[0]["id"]
 
-    # 3. Create user profile as AGENT (not admin)
-    # Trial users should immediately experience the agent calling workflow.
+    # Create user profile as AGENT
     db.table("user_profiles").insert({
         "id":        user.id,
         "org_id":    org_id,
@@ -113,19 +97,15 @@ async def signup(body: SignupRequest, db=Depends(get_supabase)):
     }).execute()
 
     return {
-        "message":  "Trial account created. Welcome to SolarFlow Pro.",
-        "org_id":   org_id,
-        "plan":     "trial",
+        "message":    "Trial account created. Welcome to SolarFlow Pro.",
+        "org_id":     org_id,
+        "plan":       "trial",
         "trial_days": 7,
     }
 
 
 @router.post("/refresh")
 async def refresh_token(refresh_token: str, db=Depends(get_supabase)):
-    """
-    Silently refreshes an expired access token.
-    Called automatically by the frontend before the token expires (every 55 min).
-    """
     try:
         response = db.auth.refresh_session(refresh_token)
         return {
@@ -138,6 +118,5 @@ async def refresh_token(refresh_token: str, db=Depends(get_supabase)):
 
 @router.post("/logout")
 async def logout(db=Depends(get_supabase)):
-    """Signs out the current session."""
     db.auth.sign_out()
     return {"message": "Logged out successfully"}

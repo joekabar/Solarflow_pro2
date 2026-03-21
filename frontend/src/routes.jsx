@@ -4,26 +4,43 @@ import AgentWorkspace  from './pages/AgentWorkspace'
 import SupervisorPanel from './pages/SupervisorPanel'
 import AdminPanel      from './pages/AdminPanel'
 import ClientPortal    from './pages/ClientPortal'
+import PlatformAdmin   from './pages/PlatformAdmin'
 
 function RoleGuard({ children, allowed }) {
   const { user } = useAgentStore()
   if (!user) return <Navigate to="/login" replace />
-  if (!allowed.includes(user.role)) return <Navigate to="/unauthorized" replace />
+  if (!allowed.includes(user.role) && !user.is_platform_admin) return <Navigate to="/unauthorized" replace />
+  return children
+}
+
+function PlatformGuard({ children }) {
+  const { user } = useAgentStore()
+  if (!user) return <Navigate to="/login" replace />
+  if (!user.is_platform_admin) return <Navigate to="/unauthorized" replace />
   return children
 }
 
 function RoleRedirect() {
   const { user } = useAgentStore()
-  if (!user)                      return <Navigate to="/login" replace />
-  if (user.role === 'admin')      return <Navigate to="/admin" replace />
-  if (user.role === 'supervisor') return <Navigate to="/supervisor" replace />
-  if (user.role === 'client')     return <Navigate to="/portal" replace />
+  if (!user)                        return <Navigate to="/login" replace />
+  if (user.is_platform_admin)       return <Navigate to="/platform" replace />
+  if (user.role === 'admin')        return <Navigate to="/admin" replace />
+  if (user.role === 'supervisor')   return <Navigate to="/supervisor" replace />
+  if (user.role === 'client')       return <Navigate to="/portal" replace />
   return <Navigate to="/workspace" replace />
 }
 
 export function AppRoutes() {
   return (
     <Routes>
+      <Route
+        path="/platform/*"
+        element={
+          <PlatformGuard>
+            <PlatformAdmin />
+          </PlatformGuard>
+        }
+      />
       <Route
         path="/workspace"
         element={
@@ -59,7 +76,7 @@ export function AppRoutes() {
       <Route path="/"            element={<RoleRedirect />} />
       <Route path="/unauthorized" element={
         <div style={{ padding: '2rem', color: 'var(--color-text-primary)' }}>
-          You don't have permission to view this page.
+          Je hebt geen toegang tot deze pagina.
         </div>
       }/>
     </Routes>
