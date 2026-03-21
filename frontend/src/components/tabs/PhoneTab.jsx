@@ -17,7 +17,7 @@ export default function PhoneTab() {
   const { contact, callStatus, callDurationSec,
           waitSeconds, setCallStatus } = useCallStore()
   const { campaign }   = useCampaignStore()
-  const { requestNextContact, completeCall, loading } = useContacts()
+  const { requestNextContact, completeCall, loading, error: contactError } = useContacts()
 
   const [outcome, setOutcome]     = useState(null)
   const [outcomeLbl, setOutcomeLbl] = useState('')
@@ -214,7 +214,7 @@ export default function PhoneTab() {
   if (!contact) return (
     <div style={s.wrap}>
       <div style={s.empty}>
-        <div style={{ fontSize: 13 }}>Geen contact geladen</div>
+        <div style={{ fontSize: 13 }}>{contactError || 'Geen contact geladen'}</div>
         <button style={{ ...s.btn, ...({ background: '#1d6fb8', color: '#fff', border: 'none' }) }} onClick={requestNextContact} disabled={loading}>
           {loading ? 'Laden…' : 'Volgend contact'}
         </button>
