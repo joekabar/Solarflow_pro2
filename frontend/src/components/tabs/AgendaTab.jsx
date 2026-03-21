@@ -1,63 +1,139 @@
+// frontend/src/components/tabs/AgendaTab.jsx
+// ──────────────────────────────────────────────
+// Shows real appointments from the database.
+// Simple list view — calendar integration comes in Sprint 6.
+
+import { useState, useEffect } from 'react'
+import { api } from '../../hooks/api'
+
 export default function AgendaTab() {
+  const [appointments, setAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { loadAppointments() }, [])
+
+  async function loadAppointments() {
+    setLoading(true)
+    try {
+      const res = await api.get('/appointments')
+      setAppointments(res.appointments || [])
+    } catch (e) {
+      console.error('Failed to load appointments:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const today = new Date()
-  const days  = ['Mo','Tu','We','Th','Fr','Sa','Su']
-  const month = today.toLocaleString('en', { month:'long', year:'numeric' })
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
-  const lastDay  = new Date(today.getFullYear(), today.getMonth()+1, 0)
-  const startDow = (firstDay.getDay()+6) % 7
-  const cells = Array.from({ length: Math.ceil((startDow+lastDay.getDate())/7)*7 }, (_,i) => {
-    const d = i - startDow + 1
-    return d >= 1 && d <= lastDay.getDate() ? d : null
-  })
-  const HAS_APPT = [3,7,10,14,18,21,28]
+  const todayStr = today.toISOString().split('T')[0]
+
+  const todayAppts = appointments.filter(a => a.scheduled_at?.startsWith(todayStr))
+  const upcomingAppts = appointments.filter(a => a.scheduled_at > today.toISOString() && !a.scheduled_at?.startsWith(todayStr))
+  const pastAppts = appointments.filter(a => a.scheduled_at < today.toISOString() && !a.scheduled_at?.startsWith(todayStr))
 
   const s = {
-    wrap:  { height:'100%', padding:12, display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,200px)', gap:10, overflowY:'auto' },
-    card:  { background:'var(--color-background-primary)', border:'0.5px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-lg)', overflow:'hidden' },
-    chdr:  { display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderBottom:'0.5px solid var(--color-border-tertiary)' },
-    btn:   { padding:'4px 8px', borderRadius:6, border:'0.5px solid var(--color-border-secondary)', background:'var(--color-background-primary)', color:'var(--color-text-primary)', fontSize:11, cursor:'pointer' },
-    btnP:  { background:'#1d6fb8', color:'#fff', border:'none' },
-    grid:  { display:'grid', gridTemplateColumns:'repeat(7,1fr)', textAlign:'center' },
-    dh:    { padding:'6px 2px', fontSize:10, color:'var(--color-text-secondary)', fontWeight:500 },
-    day:   (isToday) => ({ padding:'7px 2px', fontSize:12, borderBottom:'0.5px solid var(--color-border-tertiary)', background: isToday ? 'var(--color-background-info)' : 'transparent', color: isToday ? 'var(--color-text-info)' : 'var(--color-text-primary)', fontWeight: isToday ? 500 : 400 }),
-    dot:   { width:4, height:4, borderRadius:'50%', background:'#3b82f6', margin:'1px auto 0' },
-    appt:  { padding:8, background:'var(--color-background-info)', borderRadius:'0 7px 7px 0', borderLeft:'3px solid #3b82f6', marginBottom:7 },
-    aptt:  { fontSize:12, fontWeight:500 },
-    aptd:  { fontSize:10, color:'var(--color-text-secondary)' },
+    wrap:  { height: '100%', padding: 12, overflowY: 'auto' },
+    card:  { background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', overflow: 'hidden', marginBottom: 12 },
+    hdr:   { padding: '10px 14px', borderBottom: '0.5px solid var(--color-border-tertiary)', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    count: { fontSize: 10, color: 'var(--color-text-secondary)', background: 'var(--color-background-secondary)', padding: '2px 8px', borderRadius: 20 },
+    empty: { padding: '24px 14px', textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 12 },
+    appt:  { padding: '10px 14px', borderBottom: '0.5px solid var(--color-border-tertiary)', display: 'flex', gap: 10, alignItems: 'flex-start' },
+    time:  { fontSize: 18, fontWeight: 500, color: 'var(--color-text-primary)', minWidth: 50, lineHeight: 1.2 },
+    info:  { flex: 1 },
+    title: { fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', marginBottom: 2 },
+    addr:  { fontSize: 11, color: 'var(--color-text-secondary)' },
+    badge: (status) => ({
+      display: 'inline-block', padding: '2px 7px', borderRadius: 20, fontSize: 9, fontWeight: 500,
+      background: status === 'scheduled' ? 'var(--color-background-info)' : status === 'completed' ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
+      color: status === 'scheduled' ? 'var(--color-text-info)' : status === 'completed' ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+    }),
   }
+
+  function formatTime(iso) {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  function formatDate(iso) {
+    if (!iso) return ''
+    return new Date(iso).toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' })
+  }
+
+  function renderAppt(a) {
+    return (
+      <div key={a.id} style={s.appt}>
+        <div style={s.time}>{formatTime(a.scheduled_at)}</div>
+        <div style={s.info}>
+          <div style={s.title}>{a.title || 'Afspraak'}</div>
+          {a.address && <div style={s.addr}>{a.address}</div>}
+          {a.notes && <div style={{ ...s.addr, fontStyle: 'italic', marginTop: 2 }}>{a.notes}</div>}
+        </div>
+        <span style={s.badge(a.status)}>{a.status}</span>
+      </div>
+    )
+  }
+
+  if (loading) return (
+    <div style={s.wrap}><div style={{ ...s.card, padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 12 }}>Laden…</div></div>
+  )
 
   return (
     <div style={s.wrap}>
+      {/* Today */}
       <div style={s.card}>
-        <div style={s.chdr}>
-          <button style={s.btn}>← Prev</button>
-          <div style={{ flex:1, textAlign:'center', fontWeight:500, fontSize:13 }}>{month}</div>
-          <button style={s.btn}>Next →</button>
-          <button style={{ ...s.btn, ...s.btnP }}>+ New appointment</button>
+        <div style={s.hdr}>
+          <span>Vandaag — {today.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+          <span style={s.count}>{todayAppts.length}</span>
         </div>
-        <div style={s.grid}>{days.map(d => <div key={d} style={s.dh}>{d}</div>)}</div>
-        <div style={s.grid}>
-          {cells.map((d,i) => d ? (
-            <div key={i} style={s.day(d===today.getDate())}>
-              {d}{HAS_APPT.includes(d) && <div style={s.dot}/>}
+        {todayAppts.length === 0 ? (
+          <div style={s.empty}>Geen afspraken vandaag</div>
+        ) : (
+          todayAppts.map(renderAppt)
+        )}
+      </div>
+
+      {/* Upcoming */}
+      <div style={s.card}>
+        <div style={s.hdr}>
+          <span>Komende afspraken</span>
+          <span style={s.count}>{upcomingAppts.length}</span>
+        </div>
+        {upcomingAppts.length === 0 ? (
+          <div style={s.empty}>Geen komende afspraken</div>
+        ) : (
+          upcomingAppts.slice(0, 10).map(a => (
+            <div key={a.id} style={s.appt}>
+              <div style={{ ...s.time, fontSize: 11, minWidth: 70, color: 'var(--color-text-secondary)' }}>{formatDate(a.scheduled_at)}</div>
+              <div style={s.info}>
+                <div style={s.title}>{a.title || 'Afspraak'}</div>
+                {a.address && <div style={s.addr}>{a.address}</div>}
+              </div>
+              <span style={s.badge(a.status)}>{a.status}</span>
             </div>
-          ) : <div key={i} style={s.day(false)}/>)}
-        </div>
+          ))
+        )}
       </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+
+      {/* Past */}
+      {pastAppts.length > 0 && (
         <div style={s.card}>
-          <div style={{ padding:'9px 12px', borderBottom:'0.5px solid var(--color-border-tertiary)', fontSize:10, fontWeight:500, color:'var(--color-text-secondary)', textTransform:'uppercase', letterSpacing:'.06em' }}>Today</div>
-          <div style={{ padding:10 }}>
-            <div style={s.appt}><div style={s.aptt}>Site visit — Pietersen</div><div style={s.aptd}>14:00 · Koningsstraat 12</div></div>
-            <div style={{ ...s.appt, background:'var(--color-background-secondary)', borderLeftColor:'var(--color-border-secondary)' }}><div style={s.aptt}>Follow-up — Janssen</div><div style={s.aptd}>16:30 · +32 477 98 76 54</div></div>
+          <div style={s.hdr}>
+            <span>Afgelopen</span>
+            <span style={s.count}>{pastAppts.length}</span>
           </div>
+          {pastAppts.slice(0, 5).map(a => (
+            <div key={a.id} style={{ ...s.appt, opacity: 0.6 }}>
+              <div style={{ ...s.time, fontSize: 11, minWidth: 70, color: 'var(--color-text-tertiary)' }}>{formatDate(a.scheduled_at)}</div>
+              <div style={s.info}>
+                <div style={{ ...s.title, color: 'var(--color-text-secondary)' }}>{a.title || 'Afspraak'}</div>
+                {a.address && <div style={s.addr}>{a.address}</div>}
+              </div>
+              <span style={s.badge(a.status)}>{a.status}</span>
+            </div>
+          ))}
         </div>
-        <div style={{ ...s.card, padding:12 }}>
-          <div style={{ fontSize:10, fontWeight:500, color:'var(--color-text-secondary)', textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8 }}>Google Calendar</div>
-          <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12 }}><div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e' }}/><span>Synced</span></div>
-          <button style={{ ...s.btn, marginTop:10, width:'100%' }}>Manage calendar →</button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

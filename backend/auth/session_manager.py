@@ -16,12 +16,8 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class SignupRequest(BaseModel):
-    email:      EmailStr
-    password:   str
-    full_name:  str
-    org_name:   str
-    country:    str = "BE"
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 @router.post("/login")
@@ -32,19 +28,23 @@ async def login(body: LoginRequest, db=Depends(get_supabase)):
             "password": body.password,
         })
     except Exception:
-        raise HTTPException(401, "Invalid email or password")
+        raise HTTPException(401, "Ongeldig e-mailadres of wachtwoord")
 
     user    = response.user
     session = response.session
 
-    profile = db.table("user_profiles")\
-        .select("role, full_name, org_id, is_platform_admin, organizations(name, plan, trial_ends_at, contact_interval_sec)")\
-        .eq("id", user.id)\
-        .single()\
-        .execute()
+    try:
+        profile = db.table("user_profiles") \
+            .select("role, full_name, org_id, is_platform_admin, organizations(name, plan, trial_ends_at, contact_interval_sec)") \
+            .eq("id", user.id) \
+            .single() \
+            .execute()
+    except Exception as e:
+        print(f"[login] Profile load error: {e}")
+        raise HTTPException(403, "Account niet volledig ingesteld — neem contact op met support")
 
     if not profile.data:
-        raise HTTPException(403, "Account not fully set up — contact support")
+        raise HTTPException(403, "Account niet volledig ingesteld — neem contact op met support")
 
     p   = profile.data
     org = p["organizations"]
@@ -67,56 +67,24 @@ async def login(body: LoginRequest, db=Depends(get_supabase)):
     }
 
 
-@router.post("/signup")
-async def signup(body: SignupRequest, db=Depends(get_supabase)):
-    # Create auth user
-    try:
-        auth_response = db.auth.sign_up({
-            "email":    body.email,
-            "password": body.password,
-        })
-        user = auth_response.user
-    except Exception as e:
-        raise HTTPException(400, f"Signup failed: {str(e)}")
-
-    # Create organization with 7-day trial
-    org = db.table("organizations").insert({
-        "name":    body.org_name,
-        "country": body.country,
-        "plan":    "trial",
-    }).execute()
-
-    org_id = org.data[0]["id"]
-
-    # Create user profile as AGENT
-    db.table("user_profiles").insert({
-        "id":        user.id,
-        "org_id":    org_id,
-        "role":      "agent",
-        "full_name": body.full_name,
-    }).execute()
-
-    return {
-        "message":    "Trial account created. Welcome to SolarFlow Pro.",
-        "org_id":     org_id,
-        "plan":       "trial",
-        "trial_days": 7,
-    }
-
-
 @router.post("/refresh")
-async def refresh_token(refresh_token: str, db=Depends(get_supabase)):
+async def refresh_token(body: RefreshRequest, db=Depends(get_supabase)):
+    """Silently refreshes an expired access token."""
     try:
-        response = db.auth.refresh_session(refresh_token)
+        response = db.auth.refresh_session(body.refresh_token)
         return {
             "access_token":  response.session.access_token,
             "refresh_token": response.session.refresh_token,
         }
     except Exception:
-        raise HTTPException(401, "Refresh token invalid or expired — please log in again")
+        raise HTTPException(401, "Vernieuw-token ongeldig of verlopen — log opnieuw in")
 
 
 @router.post("/logout")
 async def logout(db=Depends(get_supabase)):
-    db.auth.sign_out()
-    return {"message": "Logged out successfully"}
+    """Signs out the current session."""
+    try:
+        db.auth.sign_out()
+    except Exception:
+        pass
+    return {"message": "Uitgelogd"}

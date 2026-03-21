@@ -1,7 +1,6 @@
 // frontend/src/pages/LoginPage.jsx
 // ──────────────────────────────────
-// Login and signup page.
-// No Twilio setup required during trial — agents use their own phone.
+// Login page only. No self-signup — users are invited by their admin.
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -9,16 +8,12 @@ import { useAgentStore } from '../store/agentStore'
 import { api } from '../hooks/api'
 
 export default function LoginPage() {
-  const [mode,    setMode]    = useState('login')   // 'login' | 'signup'
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const { setUser } = useAgentStore()
   const navigate    = useNavigate()
 
-  const [form, setForm] = useState({
-    email: '', password: '', full_name: '', org_name: '', country: 'BE',
-  })
-
+  const [form, setForm] = useState({ email: '', password: '' })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function handleLogin(e) {
@@ -35,8 +30,7 @@ export default function LoginPage() {
         refresh_token: res.refresh_token,
         ...res.user,
       })
-      // Route to correct page based on role
-      // Platform admin gets redirected to super admin dashboard
+      // Platform admin → super admin dashboard
       const dest = res.user.is_platform_admin
         ? '/platform'
         : {
@@ -45,28 +39,7 @@ export default function LoginPage() {
           }[res.user.role] || '/workspace'
       navigate(dest)
     } catch (err) {
-      setError(err.message || 'Invalid email or password')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleSignup(e) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    try {
-      await api.post('/auth/signup', {
-        email:     form.email,
-        password:  form.password,
-        full_name: form.full_name,
-        org_name:  form.org_name,
-        country:   form.country,
-      })
-      // Auto-login after signup
-      await handleLogin(e)
-    } catch (err) {
-      setError(err.message || 'Signup failed')
+      setError(err.message || 'Ongeldig e-mailadres of wachtwoord')
     } finally {
       setLoading(false)
     }
@@ -85,9 +58,7 @@ export default function LoginPage() {
     input:  { padding: '8px 10px', border: '0.5px solid var(--color-border-secondary)', borderRadius: '7px', fontSize: '13px', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', width: '100%' },
     btn:    { width: '100%', padding: '9px', borderRadius: '7px', border: 'none', background: '#1d6fb8', color: '#fff', fontSize: '13px', fontWeight: '500', cursor: 'pointer', marginTop: '4px' },
     err:    { background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', borderRadius: '7px', padding: '8px 10px', fontSize: '12px', marginBottom: '12px' },
-    switch: { textAlign: 'center', fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '16px' },
-    link:   { color: 'var(--color-text-info)', cursor: 'pointer', textDecoration: 'underline' },
-    trial:  { background: 'var(--color-background-success)', color: 'var(--color-text-success)', borderRadius: '7px', padding: '8px 10px', fontSize: '11px', marginBottom: '16px', lineHeight: '1.5' },
+    footer: { textAlign: 'center', fontSize: '11px', color: 'var(--color-text-tertiary)', marginTop: '20px', lineHeight: '1.5' },
   }
 
   return (
@@ -102,58 +73,27 @@ export default function LoginPage() {
           <span style={s.name}>SolarFlow Pro</span>
         </div>
 
-        {mode === 'signup' && (
-          <div style={s.trial}>
-            7-day free trial — no credit card needed.<br/>
-            Use your own phone to make calls during the trial.
-          </div>
-        )}
-
-        <div style={s.title}>{mode === 'login' ? 'Welcome back' : 'Start your free trial'}</div>
-        <div style={s.sub}>{mode === 'login' ? 'Sign in to your account' : '7 days, all features, no card required'}</div>
+        <div style={s.title}>Welkom terug</div>
+        <div style={s.sub}>Meld je aan bij je account</div>
 
         {error && <div style={s.err}>{error}</div>}
 
-        <form onSubmit={mode === 'login' ? handleLogin : handleSignup}>
-          {mode === 'signup' && (
-            <>
-              <label style={s.label}>
-                <span style={s.ltext}>Full name</span>
-                <input style={s.input} value={form.full_name} onChange={set('full_name')} required placeholder="Jan Janssen"/>
-              </label>
-              <label style={s.label}>
-                <span style={s.ltext}>Company name</span>
-                <input style={s.input} value={form.org_name} onChange={set('org_name')} required placeholder="Solar Company BV"/>
-              </label>
-              <label style={s.label}>
-                <span style={s.ltext}>Country</span>
-                <select style={s.input} value={form.country} onChange={set('country')}>
-                  <option value="BE">Belgium</option>
-                  <option value="NL">Netherlands</option>
-                  <option value="FR">France</option>
-                  <option value="DE">Germany</option>
-                </select>
-              </label>
-            </>
-          )}
+        <form onSubmit={handleLogin}>
           <label style={s.label}>
-            <span style={s.ltext}>Email</span>
-            <input style={s.input} type="email" value={form.email} onChange={set('email')} required placeholder="jan@company.be"/>
+            <span style={s.ltext}>E-mailadres</span>
+            <input style={s.input} type="email" value={form.email} onChange={set('email')} required placeholder="jan@bedrijf.be"/>
           </label>
           <label style={s.label}>
-            <span style={s.ltext}>Password</span>
+            <span style={s.ltext}>Wachtwoord</span>
             <input style={s.input} type="password" value={form.password} onChange={set('password')} required placeholder="••••••••" minLength={8}/>
           </label>
           <button style={s.btn} type="submit" disabled={loading}>
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Start free trial'}
+            {loading ? 'Even geduld…' : 'Inloggen'}
           </button>
         </form>
 
-        <div style={s.switch}>
-          {mode === 'login'
-            ? <span>No account? <span style={s.link} onClick={() => setMode('signup')}>Start free trial</span></span>
-            : <span>Already have an account? <span style={s.link} onClick={() => setMode('login')}>Sign in</span></span>
-          }
+        <div style={s.footer}>
+          Geen account? Neem contact op met je bedrijfsbeheerder.
         </div>
       </div>
     </div>

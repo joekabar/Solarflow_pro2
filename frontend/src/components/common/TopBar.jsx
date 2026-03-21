@@ -1,4 +1,5 @@
 // frontend/src/components/common/TopBar.jsx
+import { useState, useEffect } from 'react'
 import { useAgentStore }    from '../../store/agentStore'
 import { useCallStore }     from '../../store/callStore'
 import { useCampaignStore } from '../../store/campaignStore'
@@ -10,6 +11,18 @@ export default function TopBar() {
   const { contact, callStatus, callDurationSec } = useCallStore()
   const { campaign }         = useCampaignStore()
   const navigate             = useNavigate()
+  const [clock, setClock]    = useState('')
+
+  // Ticking clock — updates every second
+  useEffect(() => {
+    function tick() {
+      const now = new Date()
+      setClock(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`)
+    }
+    tick()
+    const interval = setInterval(tick, 10000) // update every 10s is enough
+    return () => clearInterval(interval)
+  }, [])
 
   const formatTime = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -19,9 +32,6 @@ export default function TopBar() {
     clearUser()
     navigate('/login')
   }
-
-  const now = new Date()
-  const clock = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
 
   const s = {
     bar:  { display:'flex', alignItems:'center', gap:10, padding:'0 14px', height:46, background:'var(--color-background-primary)', borderBottom:'0.5px solid var(--color-border-tertiary)', flexShrink:0 },
@@ -60,15 +70,15 @@ export default function TopBar() {
       <div style={s.sp}/>
 
       <div style={s.info}>
-        <div style={s.dot('#22c55e')}/>
-        <span>Ready</span>
+        <div style={s.dot(callStatus === 'active' ? '#22c55e' : '#888')}/>
+        <span>{callStatus === 'active' ? 'In gesprek' : 'Klaar'}</span>
         <span>·</span>
         <span>{user?.full_name}</span>
         <span>·</span>
         <span>{clock}</span>
       </div>
 
-      <button style={s.btn} onClick={logout}>Sign out</button>
+      <button style={s.btn} onClick={logout}>Uitloggen</button>
     </div>
   )
 }

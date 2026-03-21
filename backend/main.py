@@ -1,7 +1,7 @@
 """SolarFlow Pro v2 — FastAPI Backend."""
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import BaseModel
@@ -17,6 +17,7 @@ from compliance.dnc       import router as dnc_router
 from ai.roi_calculator    import router as roi_router
 from campaigns.campaigns_api import router as campaigns_router
 from auth.role_guard      import require_role
+from auth.jwt_validator   import AgentContext
 from ai.roof_intelligence import get_or_analyse_roof
 from db import get_supabase
 
@@ -40,8 +41,31 @@ app.include_router(dnc_router,        prefix="/api/compliance")
 app.include_router(roi_router,        prefix="/api/ai")
 app.include_router(campaigns_router,  prefix="/api")
 
+
+# ── Appointments endpoint ────────────────────────────────────
+@app.get("/api/appointments")
+async def list_appointments(
+    agent: AgentContext = Depends(require_role("agent", "supervisor", "admin")),
+    db=Depends(get_supabase),
+):
+    """List appointments for this agent's org, ordered by date."""
+    try:
+        result = db.table("appointments") \
+            .select("*") \
+            .eq("org_id", agent.org_id) \
+            .order("scheduled_at", desc=False) \
+            .execute()
+        return {"appointments": result.data or []}
+    except Exception as e:
+        print(f"[appointments] Error: {e}")
+        return {"appointments": []}
+
+
+# ── Roof analysis endpoint ───────────────────────────────────
 class RoofRequest(BaseModel):
-    contact_id: str; address: str; country: str = "BE"
+    contact_id: str
+    address: str
+    country: str = "BE"
 
 @app.post("/api/ai/roof/analyse")
 async def analyse_roof(body: RoofRequest,
@@ -52,11 +76,13 @@ async def analyse_roof(body: RoofRequest,
     from dataclasses import asdict
     return {"status":"ok","analysis":asdict(result)}
 
+
+# ── Scheduler ────────────────────────────────────────────────
 scheduler = AsyncIOScheduler()
 
 @app.on_event("startup")
 async def startup():
-    scheduler.add_job(release_expired_locks,"interval",minutes=5)
+    scheduler.add_job(release_expired_locks, "interval", minutes=5)
     scheduler.start()
     print("✅ SolarFlow Pro v2 started")
 
@@ -66,4 +92,4 @@ async def shutdown():
 
 @app.get("/api/health")
 async def health():
-    return {"status":"ok","version":"2.0.0"}
+    return {"status": "ok", "version": "2.0.0"}
