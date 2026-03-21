@@ -5,6 +5,7 @@ import SupervisorPanel from './pages/SupervisorPanel'
 import AdminPanel      from './pages/AdminPanel'
 import ClientPortal    from './pages/ClientPortal'
 import PlatformAdmin   from './pages/PlatformAdmin'
+import LoginPage from './pages/LoginPage'
 
 function RoleGuard({ children, allowed }) {
   const { user } = useAgentStore()
@@ -40,6 +41,7 @@ export function AppRoutes() {
             <PlatformAdmin />
           </PlatformGuard>
         }
+        
       />
       <Route
         path="/workspace"
@@ -73,6 +75,7 @@ export function AppRoutes() {
           </RoleGuard>
         }
       />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/"            element={<RoleRedirect />} />
       <Route path="/unauthorized" element={
         <div style={{ padding: '2rem', color: 'var(--color-text-primary)' }}>
