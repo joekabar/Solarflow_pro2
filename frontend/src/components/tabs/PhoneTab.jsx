@@ -13,13 +13,13 @@ export default function PhoneTab({ onTabChange }) {
 
   const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
 
-  async function handleComplete(o) {
+async function handleComplete(o) {
     if (!contact || !campaign) return
     await completeCall({ contact_id: contact.id, campaign_id: campaign.id, outcome: o, duration_sec: callDurationSec })
     setOutcome('')
-    onTabChange?.('map')
+    // Stay on Phone tab and auto-load next contact
+    await requestNextContact()
   }
-
   const s = {
     wrap:  { height:'100%', padding:12, display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)', gap:10, overflowY:'auto' },
     card:  { background:'var(--color-background-primary)', border:'0.5px solid var(--color-border-tertiary)', borderRadius:'var(--border-radius-lg)', padding:14 },
