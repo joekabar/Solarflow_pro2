@@ -17,12 +17,13 @@ The importer:
 
 import io
 import csv
+import traceback
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional
 
 from auth.role_guard import require_role
 from auth.jwt_validator import AgentContext
-from compliance.dnc import is_on_dnc, _normalise_phone
+from compliance.dnc import _normalise_phone
 from db import get_supabase
 
 router = APIRouter()
@@ -56,6 +57,7 @@ async def import_contacts(
 
     # Read file content
     content = await file.read()
+    print(f"[import] File: {file.filename}, size: {len(content)} bytes")
 
     # Parse rows based on file type
     if file.filename.endswith(".csv"):
@@ -66,8 +68,12 @@ async def import_contacts(
     if not rows:
         raise HTTPException(400, "File is empty or could not be parsed")
 
+    print(f"[import] Parsed {len(rows)} rows")
+    print(f"[import] Headers: {list(rows[0].keys())}")
+
     # Detect column mapping from first row headers
     col_map = _detect_columns(rows[0].keys())
+    print(f"[import] Column mapping: {col_map}")
 
     stats = {
         "imported":           0,
@@ -79,20 +85,40 @@ async def import_contacts(
     }
 
     # Load existing phones to detect duplicates efficiently
-    existing = db.table("contacts")\
-        .select("phone")\
-        .eq("org_id", agent.org_id)\
-        .execute()
-    existing_phones = {
-        _normalise_phone(r["phone"]) for r in (existing.data or [])
-    }
+    try:
+        existing_result = db.table("contacts")\
+            .select("phone")\
+            .eq("org_id", agent.org_id)\
+            .execute()
+        existing_phones = {
+            _normalise_phone(r["phone"]) for r in (existing_result.data or [])
+        }
+        print(f"[import] Existing phones in org: {len(existing_phones)}")
+    except Exception as e:
+        print(f"[import] Failed to load existing phones: {e}")
+        existing_phones = set()
+
+    # Load DNC list for this org
+    try:
+        dnc_result = db.table("dnc_list")\
+            .select("phone")\
+            .eq("org_id", agent.org_id)\
+            .execute()
+        dnc_phones = {
+            _normalise_phone(r["phone"]) for r in (dnc_result.data or [])
+        }
+        print(f"[import] DNC phones in org: {len(dnc_phones)}")
+    except Exception as e:
+        print(f"[import] Failed to load DNC list: {e}")
+        dnc_phones = set()
 
     batch = []
 
-    for row in rows:
+    for i, row in enumerate(rows):
         try:
             # Extract phone (required)
-            raw_phone = row.get(col_map.get("phone", "phone"), "").strip()
+            phone_col = col_map.get("phone", "phone")
+            raw_phone = str(row.get(phone_col, "")).strip()
             if not raw_phone:
                 stats["skipped_no_phone"] += 1
                 continue
@@ -104,28 +130,27 @@ async def import_contacts(
                 stats["skipped_duplicate"] += 1
                 continue
 
-            # Skip DNC
-            if await is_on_dnc(phone, agent.org_id, db):
+            # Skip DNC — check against pre-loaded set
+            if phone in dnc_phones:
                 stats["skipped_dnc"] += 1
                 continue
 
             # Build contact record
             contact = {
-                "org_id":          agent.org_id,
-                "campaign_id":     campaign_id,
-                "phone":           phone,
-                "first_name":      row.get(col_map.get("first_name", ""), "").strip() or None,
-                "last_name":       row.get(col_map.get("last_name",  ""), "").strip() or None,
-                "email":           row.get(col_map.get("email",      ""), "").strip() or None,
-                # Address stored as original — hidden from agents
-                "street_original":      row.get(col_map.get("street",       ""), "").strip() or None,
-                "city_original":        row.get(col_map.get("city",         ""), "").strip() or None,
-                "postal_code_original": row.get(col_map.get("postal_code",  ""), "").strip() or None,
-                "lead_score": _safe_int(
+                "org_id":               agent.org_id,
+                "campaign_id":          campaign_id,
+                "phone":                phone,
+                "first_name":           _get_field(row, col_map, "first_name"),
+                "last_name":            _get_field(row, col_map, "last_name"),
+                "email":                _get_field(row, col_map, "email"),
+                "street_original":      _get_field(row, col_map, "street"),
+                "city_original":        _get_field(row, col_map, "city"),
+                "postal_code_original": _get_field(row, col_map, "postal_code"),
+                "lead_score":           _safe_int(
                     row.get(col_map.get("lead_score", ""), "50"), 50
                 ),
-                "status":      "available",
-                "lead_source": "import",
+                "status":               "available",
+                "lead_source":          "import",
             }
 
             batch.append(contact)
@@ -133,18 +158,28 @@ async def import_contacts(
 
             # Insert in batches of 100 for performance
             if len(batch) >= 100:
+                print(f"[import] Inserting batch of {len(batch)}")
                 db.table("contacts").insert(batch).execute()
                 stats["imported"] += len(batch)
                 batch = []
 
         except Exception as e:
             stats["errors"] += 1
-            print(f"[import] Row error: {e}")
+            print(f"[import] Row {i} error: {e}")
+            traceback.print_exc()
 
     # Insert remaining batch
     if batch:
-        db.table("contacts").insert(batch).execute()
-        stats["imported"] += len(batch)
+        try:
+            print(f"[import] Inserting final batch of {len(batch)}")
+            db.table("contacts").insert(batch).execute()
+            stats["imported"] += len(batch)
+        except Exception as e:
+            print(f"[import] Final batch insert error: {e}")
+            traceback.print_exc()
+            stats["errors"] += len(batch)
+
+    print(f"[import] Done: {stats}")
 
     return {
         "status": "ok",
@@ -157,8 +192,19 @@ async def import_contacts(
     }
 
 
+def _get_field(row: dict, col_map: dict, field: str) -> str | None:
+    """Safely extract a field from a row using the column mapping."""
+    col_name = col_map.get(field, "")
+    if not col_name:
+        return None
+    val = row.get(col_name, "")
+    if val is None:
+        return None
+    return str(val).strip() or None
+
+
 def _parse_csv(content: bytes) -> list[dict]:
-    text   = content.decode("utf-8-sig")   # handles BOM from Excel exports
+    text = content.decode("utf-8-sig")   # handles BOM from Excel exports
     reader = csv.DictReader(io.StringIO(text))
     return list(reader)
 
@@ -166,8 +212,8 @@ def _parse_csv(content: bytes) -> list[dict]:
 def _parse_excel(content: bytes) -> list[dict]:
     try:
         import openpyxl
-        wb   = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
-        ws   = wb.active
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
+        ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
         if not rows:
             return []
@@ -181,7 +227,7 @@ def _parse_excel(content: bytes) -> list[dict]:
         raise HTTPException(500, "openpyxl not installed — CSV import still works")
 
 
-def _detect_columns(headers: list) -> dict:
+def _detect_columns(headers) -> dict:
     """
     Maps our canonical field names to actual CSV column headers.
     Case-insensitive. Returns best match or original name.
@@ -198,7 +244,7 @@ def _detect_columns(headers: list) -> dict:
     return result
 
 
-def _safe_int(value: str, default: int) -> int:
+def _safe_int(value, default: int) -> int:
     try:
         v = int(float(str(value).strip()))
         return max(0, min(100, v))   # clamp to 0-100
