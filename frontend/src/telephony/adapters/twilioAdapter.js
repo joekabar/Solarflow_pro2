@@ -34,7 +34,7 @@ export async function createTwilioDevice(token, handlers) {
     // Recommended settings for a sales dialer
     closeProtection: true,          // Warn if closing tab during call
     codecPreferences: ['opus', 'pcmu'],  // Opus first for quality
-    edge: 'ashburn',                // Closest Twilio edge (EU: 'dublin' or 'frankfurt')
+    edge: 'dublin',                 // EU edge (closest to Belgium)
     enableImplicitSubscription: true,
     logLevel: 'warn',               // 'debug' for dev, 'warn' for prod
   })

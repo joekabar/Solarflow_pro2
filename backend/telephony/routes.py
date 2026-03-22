@@ -249,25 +249,35 @@ async def webhook_voice(request: Request, db=Depends(get_supabase)):
     form = await request.form()
     body = dict(form)
 
-    # Determine which org this call belongs to by looking up the CallSid
-    call_log = db.table("call_logs").select("org_id").eq(
-        "call_sid", body.get("CallSid", "")
-    ).single().execute()
+    call_sid   = body.get("CallSid", "")
+    from_field = body.get("From", "")
+    to_number  = body.get("To", "")
 
-    if not call_log.data:
-        # Fallback: return generic TwiML
+    org_id = None
+
+    # Browser-initiated calls: From = "client:<agent_uuid>"
+    # The CallSid is new and not yet in call_logs — look up org via the agent profile.
+    if from_field.startswith("client:"):
+        agent_id = from_field[len("client:"):]
+        profile = db.table("user_profiles").select("org_id").eq("id", agent_id).single().execute()
+        if profile.data:
+            org_id = profile.data["org_id"]
+
+    # Server-initiated calls: CallSid is already in call_logs
+    if not org_id and call_sid:
+        call_log = db.table("call_logs").select("org_id").eq("call_sid", call_sid).single().execute()
+        if call_log.data:
+            org_id = call_log.data["org_id"]
+
+    if not org_id:
+        logger.warning(f"webhook_voice: could not resolve org for CallSid={call_sid} From={from_field}")
         return Response(
             content="<Response><Say>Call not recognized.</Say></Response>",
             media_type="application/xml",
         )
 
-    org_id = call_log.data["org_id"]
     provider = await get_provider(org_id, db, ENCRYPTION_KEY)
-
-    # Build the dial response using the provider abstraction
-    to_number = body.get("To", "")
     twiml = await provider.build_dial_response(to=to_number)
-
     return Response(content=twiml, media_type="application/xml")
 
 
@@ -395,6 +405,16 @@ async def setup_telephony(
         sip_password=body.sip_password,
         webhook_base_url=body.webhook_base_url,
     )
+
+    # Validate TwiML App SID format (must be APxxxxxxxx, not a URL)
+    if body.provider == "twilio" and body.twiml_app_sid:
+        if not body.twiml_app_sid.startswith("AP"):
+            raise HTTPException(
+                400,
+                "TwiML App SID must start with 'AP' (e.g. APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx). "
+                "Find it in Twilio Console → Voice → TwiML Apps. "
+                "Do not paste the webhook URL here — that goes in the 'Webhook Base URL' field."
+            )
 
     # Validate before saving
     from .factory import PROVIDER_REGISTRY
