@@ -31,6 +31,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["telephony"])
 
 ENCRYPTION_KEY = os.getenv("CREDENTIAL_ENCRYPTION_KEY", "")
+if not ENCRYPTION_KEY:
+    logger.warning(
+        "⚠️  CREDENTIAL_ENCRYPTION_KEY is not set! "
+        "Telephony setup will fail. Generate a key with: "
+        "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+    )
 
 
 # ── Dependency: get provider for current user's org ───────────
@@ -402,7 +408,11 @@ async def setup_telephony(
         raise HTTPException(400, "Could not validate credentials with the provider. Check your Account SID and Auth Token.")
 
     # Encrypt and store
-    encrypted = encrypt_credentials(credentials, ENCRYPTION_KEY)
+    try:
+        encrypted = encrypt_credentials(credentials, ENCRYPTION_KEY)
+    except ValueError as e:
+        logger.error(f"Encryption key error: {e}")
+        raise HTTPException(500, "Server is missing CREDENTIAL_ENCRYPTION_KEY. Set it in Railway environment variables and redeploy.")
 
     db.table("organizations").update({
         "telephony_provider":              body.provider,

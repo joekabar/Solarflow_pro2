@@ -114,7 +114,19 @@ PROVIDER_REGISTRY["manual"] = ManualProvider
 
 def _get_fernet(encryption_key: str) -> Fernet:
     """Create a Fernet cipher from the app-level encryption key."""
-    return Fernet(encryption_key.encode() if isinstance(encryption_key, str) else encryption_key)
+    if not encryption_key:
+        raise ValueError(
+            "CREDENTIAL_ENCRYPTION_KEY is not set. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
+            "and add it to Railway environment variables."
+        )
+    try:
+        return Fernet(encryption_key.encode() if isinstance(encryption_key, str) else encryption_key)
+    except Exception:
+        raise ValueError(
+            "CREDENTIAL_ENCRYPTION_KEY is invalid. It must be a 32-byte url-safe base64 string. "
+            "Generate a new one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
 
 
 def encrypt_credentials(
