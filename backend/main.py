@@ -20,6 +20,7 @@ from dialer.lock_cleanup   import release_expired_locks
 from contacts.import_csv   import router as import_router
 from compliance.dnc        import router as dnc_router
 from telephony.routes      import router as telephony_router    # ← NEW
+import os
 
 # Uncomment for v2:
 # from ai.roi_calculator   import router as roi_router
@@ -33,12 +34,14 @@ app = FastAPI(
 # ── CORS ─────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-    "http://localhost:5173",
-    "https://app.solarflowpro.com",
-    "https://solarflow-pro2-al91.vercel.app",              # ← your Vercel domain
-    "https://solarflow-pro2-al91-joekabars-projects.vercel.app",  # ← preview domain
-    ],
+   ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173"
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
