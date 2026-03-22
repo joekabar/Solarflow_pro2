@@ -72,6 +72,7 @@ export default function PlatformAdmin() {
     pill:   (color) => ({ display:'inline-block', padding:'2px 8px', borderRadius:20, fontSize:10, fontWeight:500, background: color === 'green' ? '#0f5132' : color === 'amber' ? '#5c3d0e' : color === 'red' ? '#5c1010' : '#2a2d38', color: color === 'green' ? '#34d399' : color === 'amber' ? '#f59e0b' : color === 'red' ? '#f87171' : C.sub }),
     btn:    { padding:'5px 12px', borderRadius:6, border:`0.5px solid ${C.bdr}`, background:C.card, color:C.txt, fontSize:11, cursor:'pointer' },
     btnP:   { padding:'6px 14px', borderRadius:7, border:'none', background:C.brand, color:'#fff', fontSize:12, fontWeight:500, cursor:'pointer' },
+    btnD:   { padding:'5px 12px', borderRadius:6, border:`0.5px solid #5c1010`, background:'#1a0808', color:C.red, fontSize:11, cursor:'pointer' },
     swatch: (c) => ({ width:20, height:20, borderRadius:4, background:c, border:'1px solid rgba(255,255,255,.15)', flexShrink:0 }),
     info:   { display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.sub },
   }
@@ -150,9 +151,33 @@ export default function PlatformAdmin() {
     }
 
     async function deleteOrg(org) {
-      if (!confirm(`${org.name} verwijderen? Alle data wordt permanent verwijderd.`)) return
+      // First try normal delete
+      const confirmed = confirm(
+        `"${org.name}" verwijderen?\n\n` +
+        `Dit bedrijf heeft ${org.user_count} gebruiker(s) en ${org.contact_count} contacten.\n\n` +
+        `Klik OK voor geforceerde verwijdering van ALLE data (gebruikers, contacten, campagnes, gesprekken).`
+      )
+      if (!confirmed) return
+
       try {
-        await api.delete(`/platform/organizations/${org.id}`)
+        // Always use force=true from the UI — we confirmed above
+        const BASE_URL = import.meta.env.VITE_API_URL || '/api'
+        const session = localStorage.getItem('sfp_session')
+        const token = session ? JSON.parse(session).access_token : null
+
+        const res = await fetch(`${BASE_URL}/platform/organizations/${org.id}?force=true`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        })
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.detail || `Verwijderen mislukt (${res.status})`)
+        }
+
         loadAll()
       } catch (e) { alert(e.message) }
     }
@@ -211,10 +236,6 @@ export default function PlatformAdmin() {
                 <span style={{ fontWeight:500, fontSize:14 }}>{form.display_name || form.name || 'Bedrijfsnaam'}</span>
                 <span style={{ color:C.sub, fontSize:12 }}>— Admin</span>
               </div>
-              <div style={{ display:'flex', gap:6, marginTop:8 }}>
-                <div style={{ padding:'5px 14px', borderRadius:6, background:form.primary_color, color:'#fff', fontSize:11, fontWeight:500 }}>Primaire knop</div>
-                <div style={{ padding:'5px 14px', borderRadius:6, border:`1px solid ${form.primary_color}`, color:form.primary_color, fontSize:11, fontWeight:500 }}>Secundaire knop</div>
-              </div>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' }}>
               <button style={s.btn} onClick={resetForm}>Annuleren</button>
@@ -262,7 +283,7 @@ export default function PlatformAdmin() {
                     <button style={{ ...s.btn, fontSize:10, padding:'3px 8px' }} onClick={() => openEdit(org)}>Bewerk</button>
                     <button style={{ ...s.btn, fontSize:10, padding:'3px 8px' }} onClick={() => toggleActive(org)}>{org.is_active ? 'Blokkeer' : 'Activeer'}</button>
                     {org.plan === 'trial' && <button style={{ ...s.btn, fontSize:10, padding:'3px 8px' }} onClick={() => extendTrial(org)}>+7d trial</button>}
-                    <button style={{ ...s.btn, fontSize:10, padding:'3px 8px', color:C.red }} onClick={() => deleteOrg(org)}>×</button>
+                    <button style={{ ...s.btnD, fontSize:10, padding:'3px 8px' }} onClick={() => deleteOrg(org)}>🗑 Verwijder alles</button>
                   </div>
                 </td>
               </tr>
@@ -340,22 +361,6 @@ export default function PlatformAdmin() {
                     <option key={o.id} value={o.id}>{o.display_name || o.name} ({o.country})</option>
                   ))}
                 </select>
-                {form.org_id && (() => {
-                  const selOrg = orgs.find(o => o.id === form.org_id)
-                  if (!selOrg) return null
-                  return (
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8, padding:8, background:C.bg, borderRadius:6, border:`0.5px solid ${C.bdr}` }}>
-                      {selOrg.logo_url ? (
-                        <img src={selOrg.logo_url} alt="" style={{ height:20, maxWidth:60, objectFit:'contain' }}/>
-                      ) : (
-                        <div style={s.swatch(selOrg.primary_color || '#1d6fb8')}/>
-                      )}
-                      <span style={{ fontSize:12 }}>{selOrg.display_name || selOrg.name}</span>
-                      <span style={s.pill(selOrg.plan === 'trial' ? 'amber' : 'green')}>{selOrg.plan}</span>
-                      <span style={{ fontSize:10, color:C.sub }}>{selOrg.user_count}/{selOrg.seat_limit} seats</span>
-                    </div>
-                  )
-                })()}
               </div>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' }}>
@@ -377,9 +382,7 @@ export default function PlatformAdmin() {
           <tbody>
             {users.map(u => (
               <tr key={u.id}>
-                <td style={s.td}>
-                  <div style={{ fontWeight:500 }}>{u.full_name}</div>
-                </td>
+                <td style={s.td}><div style={{ fontWeight:500 }}>{u.full_name}</div></td>
                 <td style={s.td}>
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                     {u.organizations?.logo_url ? (
