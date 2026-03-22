@@ -33,7 +33,7 @@ class CampaignUpdate(BaseModel):
     calling_hours_end: Optional[str] = None
 
 
-@router.get("/campaigns")
+@router.get("")
 async def list_campaigns(
     agent: AgentContext = Depends(require_role("agent", "supervisor", "admin")),
     db=Depends(get_supabase),
@@ -47,7 +47,7 @@ async def list_campaigns(
     return {"campaigns": result.data or []}
 
 
-@router.get("/campaigns/active")
+@router.get("/active")
 async def list_active_campaigns(
     agent: AgentContext = Depends(require_role("agent", "supervisor", "admin")),
     db=Depends(get_supabase),
@@ -62,7 +62,7 @@ async def list_active_campaigns(
     return {"campaigns": result.data or []}
 
 
-@router.post("/campaigns")
+@router.post("")
 async def create_campaign(
     body: CampaignCreate,
     agent: AgentContext = Depends(require_role("admin", "supervisor")),
@@ -88,7 +88,7 @@ async def create_campaign(
     return {"status": "ok", "campaign": result.data[0]}
 
 
-@router.put("/campaigns/{campaign_id}")
+@router.put("/{campaign_id}")
 async def update_campaign(
     campaign_id: str,
     body: CampaignUpdate,
@@ -118,7 +118,7 @@ async def update_campaign(
     return {"status": "ok", "campaign": result.data[0] if result.data else None}
 
 
-@router.delete("/campaigns/{campaign_id}")
+@router.delete("/{campaign_id}")
 async def delete_campaign(
     campaign_id: str,
     agent: AgentContext = Depends(require_role("admin")),
