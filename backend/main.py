@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from auth.session_manager  import router as auth_router
+from auth.user_management  import router as users_router
+from auth.platform_admin   import router as platform_admin_router
 from dialer.next_contact   import router as dialer_router
 from dialer.complete_call  import router as complete_router
 from dialer.lock_cleanup   import release_expired_locks
@@ -49,8 +51,10 @@ app.add_middleware(
 
 
 # ── Routers ──────────────────────────────────────────────────
-app.include_router(auth_router,       prefix="/api/auth")
-app.include_router(dialer_router,     prefix="/api/dialer")
+app.include_router(auth_router,           prefix="/api/auth")
+app.include_router(users_router,          prefix="/api/auth")
+app.include_router(platform_admin_router, prefix="/api/auth")
+app.include_router(dialer_router,         prefix="/api/dialer")
 app.include_router(complete_router,   prefix="/api/dialer")
 app.include_router(import_router,     prefix="/api/contacts")
 app.include_router(dnc_router,        prefix="/api/compliance")
