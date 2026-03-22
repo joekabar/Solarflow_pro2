@@ -62,7 +62,7 @@ export default function CampaignsTab() {
       const res = await api.get('/campaigns')
       setCampaigns(res.campaigns || [])
     } catch (e) {
-      setError('Kan campagnes niet laden')
+      setError(e.message || 'Kan campagnes niet laden')
     } finally {
       setLoading(false)
     }
