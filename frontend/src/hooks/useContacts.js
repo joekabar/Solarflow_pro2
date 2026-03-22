@@ -1,8 +1,4 @@
 // frontend/src/hooks/useContacts.js
-// ───────────────────────────────────
-// Hook for all contact-related operations.
-// Components never call the API directly — they use this hook.
-
 import { useState, useCallback } from 'react'
 import { useAgentStore }    from '../store/agentStore'
 import { useCallStore }     from '../store/callStore'
@@ -18,7 +14,6 @@ export function useContacts() {
           setWaitSeconds, setCallStatus } = useCallStore()
   const { campaign, incrementCalls }   = useCampaignStore()
 
-  // ── Request next contact ──────────────────────────────────
   const requestNextContact = useCallback(async () => {
     if (!campaign?.id) {
       setError('No campaign selected')
@@ -45,24 +40,10 @@ export function useContacts() {
 
     } catch (err) {
       if (err.status === 429) {
-        // Rate limited — start countdown timer
         const wait = Math.ceil(err.detail.wait_seconds)
         setWaitSeconds(wait)
         setCallStatus('idle')
-
-        // Countdown updates every second
-        const timer = setInterval(() => {
-          setWaitSeconds((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer)
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-
       } else if (err.status === 402) {
-        // Trial expired
         setError('trial_expired')
         setCallStatus('idle')
       } else if (err.status === 403 && err.detail?.error === 'outside_calling_hours') {
@@ -77,11 +58,7 @@ export function useContacts() {
     }
   }, [campaign, setContact, setCallStatus, setWaitSeconds, incrementCalls])
 
-  // ── Complete call ─────────────────────────────────────────
   const completeCall = useCallback(async (payload) => {
-    // payload: { contact_id, campaign_id, outcome, duration_sec,
-    //            notes, callback_at, script_path,
-    //            street_verified, city_verified, postal_code_verified }
     setLoading(true)
     try {
       const res = await api.post('/dialer/complete-call', payload)
@@ -95,10 +72,5 @@ export function useContacts() {
     }
   }, [clearContact])
 
-  return {
-    loading,
-    error,
-    requestNextContact,
-    completeCall,
-  }
+  return { loading, error, requestNextContact, completeCall }
 }
