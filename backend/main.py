@@ -1,27 +1,27 @@
-    """
+"""
     SolarFlow Pro — FastAPI Backend
     Entry point: starts the server and registers all routers.
 
     Run locally:  uvicorn main:app --reload --port 8000
     Production:   uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
-    """
+"""
 
-    from dotenv import load_dotenv
-    load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()
 
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-    from auth.session_manager  import router as auth_router
-    from dialer.next_contact   import router as dialer_router
-    from dialer.complete_call  import router as complete_router
-    from dialer.lock_cleanup   import release_expired_locks
-    from contacts.import_csv   import router as import_router
-    from compliance.dnc        import router as dnc_router
-    from telephony.routes      import router as telephony_router    # ← NEW
-    import os
-    from campaigns.campaigns_api import router as campaigns_router
+from auth.session_manager  import router as auth_router
+from dialer.next_contact   import router as dialer_router
+from dialer.complete_call  import router as complete_router
+from dialer.lock_cleanup   import release_expired_locks
+from contacts.import_csv   import router as import_router
+from compliance.dnc        import router as dnc_router
+from telephony.routes      import router as telephony_router    # ← NEW
+import os
+from campaigns.campaigns_api import router as campaigns_router
 
 # Uncomment for v2:
 # from ai.roi_calculator   import router as roi_router
