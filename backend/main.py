@@ -34,8 +34,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "https://app.solarflowpro.com",
+    "http://localhost:5173",
+    "https://app.solarflowpro.com",
+    "https://solarflow-pro2-al91.vercel.app",              # ← your Vercel domain
+    "https://solarflow-pro2-al91-joekabars-projects.vercel.app",  # ← preview domain
     ],
     allow_credentials=True,
     allow_methods=["*"],
