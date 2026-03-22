@@ -16,8 +16,18 @@ ALTER TABLE public.organizations
   ADD COLUMN IF NOT EXISTS primary_color text DEFAULT '#1d6fb8';
 
 -- ============================================================
--- After running: promote your superadmin user.
--- Replace <your-user-uuid> with the UUID from auth.users
+-- 3. Extend trial / activate your demo org (run if trial expired!)
+--    The default trial is only 7 days. This sets it to 30 days from now
+--    and marks the org as active so all API calls work again.
+-- ============================================================
+UPDATE public.organizations
+  SET trial_ends_at = now() + interval '30 days',
+      is_active     = true
+  WHERE id IN (SELECT org_id FROM public.user_profiles LIMIT 1);
+
+-- ============================================================
+-- 4. Promote your superadmin user.
+--    Replace <your-user-uuid> with the UUID from Supabase → Auth → Users
 -- ============================================================
 -- UPDATE public.user_profiles
 --   SET is_platform_admin = true
