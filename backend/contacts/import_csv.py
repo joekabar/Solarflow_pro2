@@ -36,6 +36,47 @@ class ResetCampaignRequest(BaseModel):
     campaign_id: str
 
 
+@router.delete("/clear-campaign/{campaign_id}")
+async def clear_campaign_contacts(
+    campaign_id: str,
+    agent: AgentContext = Depends(require_role("admin", "supervisor")),
+    db=Depends(get_supabase),
+):
+    """
+    Delete ALL contacts in a campaign permanently.
+    This allows re-importing contacts into a campaign from scratch.
+    Admin/supervisor only.
+    """
+    campaign = db.table("campaigns") \
+        .select("id, name") \
+        .eq("id", campaign_id) \
+        .eq("org_id", agent.org_id) \
+        .maybe_single() \
+        .execute()
+
+    if not campaign.data:
+        raise HTTPException(404, "Campagne niet gevonden")
+
+    try:
+        result = db.table("contacts") \
+            .delete() \
+            .eq("campaign_id", campaign_id) \
+            .eq("org_id", agent.org_id) \
+            .execute()
+
+        deleted_count = len(result.data) if result.data else 0
+
+        return {
+            "status": "ok",
+            "campaign_id": campaign_id,
+            "campaign_name": campaign.data["name"],
+            "deleted_count": deleted_count,
+        }
+    except Exception as e:
+        print(f"[clear_campaign] Error: {e}")
+        raise HTTPException(500, f"Verwijderen mislukt: {e}")
+
+
 @router.post("/reset-campaign")
 async def reset_campaign_contacts(
     body: ResetCampaignRequest,
