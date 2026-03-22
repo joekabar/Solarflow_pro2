@@ -4,7 +4,7 @@ backend/auth/platform_admin.py
 Super admin endpoints — manages all orgs, users, trials, branding.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -136,20 +136,105 @@ async def update_organization(
 @router.delete("/platform/organizations/{org_id}")
 async def delete_organization(
     org_id: str,
+    force: bool = Query(default=False, description="Force delete all related data"),
     admin: AgentContext = Depends(require_platform_admin),
     db=Depends(get_supabase),
 ):
-    """Delete an org and all its data. Platform admin only."""
+    """
+    Delete an org. Platform admin only.
+    Use ?force=true to cascade-delete all users, contacts, campaigns, logs.
+    Without force, blocks if users still exist.
+    """
     try:
-        # Check no users exist
+        # Check org exists
+        org = db.table("organizations").select("id, name").eq("id", org_id).execute()
+        if not org.data:
+            raise HTTPException(404, "Organisatie niet gevonden")
+
         users = db.table("user_profiles").select("id").eq("org_id", org_id).execute()
-        if users.data and len(users.data) > 0:
-            raise HTTPException(400, f"Kan niet verwijderen — {len(users.data)} gebruikers zijn nog gekoppeld")
+        user_count = len(users.data) if users.data else 0
+
+        if user_count > 0 and not force:
+            raise HTTPException(
+                400,
+                f"Kan niet verwijderen — {user_count} gebruikers zijn nog gekoppeld. "
+                f"Gebruik 'Geforceerd verwijderen' om alles te wissen."
+            )
+
+        if force:
+            # Cascade delete in correct FK order
+            print(f"[platform_admin] Force deleting org {org_id} with all data")
+
+            # 1. Null out locks on contacts (agents may hold locks)
+            try:
+                db.table("contacts").update({
+                    "locked_by": None, "locked_at": None, "lock_expires_at": None
+                }).eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Lock release error: {e}")
+
+            # 2. Delete call logs
+            try:
+                db.table("call_logs").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Call logs delete error: {e}")
+
+            # 3. Delete contact view log
+            try:
+                db.table("contact_view_log").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] View log delete error: {e}")
+
+            # 4. Delete appointments
+            try:
+                db.table("appointments").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Appointments delete error: {e}")
+
+            # 5. Delete savings pages
+            try:
+                db.table("savings_pages").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Savings pages delete error: {e}")
+
+            # 6. Delete DNC list
+            try:
+                db.table("dnc_list").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] DNC delete error: {e}")
+
+            # 7. Delete contacts
+            try:
+                db.table("contacts").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Contacts delete error: {e}")
+
+            # 8. Delete campaigns
+            try:
+                db.table("campaigns").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Campaigns delete error: {e}")
+
+            # 9. Delete scripts
+            try:
+                db.table("scripts").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] Scripts delete error: {e}")
+
+            # 10. Delete user profiles (auth users remain in Supabase auth — manual cleanup)
+            try:
+                db.table("user_profiles").delete().eq("org_id", org_id).execute()
+            except Exception as e:
+                print(f"[platform_admin] User profiles delete error: {e}")
+
+        # Finally delete the org
         db.table("organizations").delete().eq("id", org_id).execute()
-        return {"status": "ok", "deleted": org_id}
+        return {"status": "ok", "deleted": org_id, "forced": force}
+
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[platform_admin] Delete org error: {e}")
         raise HTTPException(500, f"Verwijderen mislukt: {e}")
 
 
@@ -184,7 +269,6 @@ async def platform_invite_user(
     db=Depends(get_supabase),
 ):
     """Invite a user to ANY org. Platform admin only."""
-    # Verify org exists
     try:
         org = db.table("organizations").select("id, name").eq("id", body.org_id).execute()
         if not org.data:
@@ -194,7 +278,6 @@ async def platform_invite_user(
     except Exception:
         raise HTTPException(500, "Fout bij controleren organisatie")
 
-    # Create auth user
     try:
         auth_response = db.auth.sign_up({"email": body.email, "password": body.password})
         user = auth_response.user
@@ -205,7 +288,6 @@ async def platform_invite_user(
     except Exception as e:
         raise HTTPException(400, f"Account aanmaken mislukt: {e}")
 
-    # Create profile in specified org
     try:
         db.table("user_profiles").insert({
             "id": user.id,
