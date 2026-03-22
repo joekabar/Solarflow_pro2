@@ -29,15 +29,15 @@ app = FastAPI(
 )
 
 # ── CORS ─────────────────────────────────────────────────────
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173"
-).split(",")
+# Auth is enforced via JWT bearer tokens, so wildcard origin is safe.
+# To restrict in future, set ALLOWED_ORIGINS env var (comma-separated).
+_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = _origins_env.split(",") if _origins_env != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=ALLOWED_ORIGINS != ["*"],  # credentials=True incompatible with wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
