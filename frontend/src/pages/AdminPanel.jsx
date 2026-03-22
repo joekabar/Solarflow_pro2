@@ -7,9 +7,10 @@ import { useAgentStore }     from '../store/agentStore'
 import { useBranding }       from '../context/BrandingProvider'
 import { useNavigate }       from 'react-router-dom'
 import { api }               from '../hooks/api'
-import CampaignsTab          from '../components/admin/CampaignsTab'
-import ContactsTab           from '../components/admin/ContactsTab'
-import UsersTab              from '../components/admin/UsersTab'
+import CampaignsTab           from '../components/admin/CampaignsTab'
+import ContactsTab            from '../components/admin/ContactsTab'
+import UsersTab               from '../components/admin/UsersTab'
+import TelephonySettingsTab   from '../components/admin/TelephonySettingsTab'
 
 const TABS = ['Users', 'Campaigns', 'Contacts', 'Scripts', 'Reports', 'Settings']
 
@@ -71,7 +72,7 @@ export default function AdminPanel() {
         {activeTab === 'Contacts'  && <ContactsTab />}
         {activeTab === 'Scripts'   && <div style={{ color:'#888', padding:40, textAlign:'center', fontSize:13 }}>Scriptbeheer — komt in Sprint 4</div>}
         {activeTab === 'Reports'   && <div style={{ color:'#888', padding:40, textAlign:'center', fontSize:13 }}>Rapportage — komt in Sprint 5</div>}
-        {activeTab === 'Settings'  && <div style={{ color:'#888', padding:40, textAlign:'center', fontSize:13 }}>Instellingen — komt later</div>}
+        {activeTab === 'Settings'  && <TelephonySettingsTab />}
       </div>
     </div>
   )

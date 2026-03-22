@@ -8,6 +8,7 @@ export default function ContactsTab() {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -61,6 +62,29 @@ export default function ContactsTab() {
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  async function handleClear() {
+    if (!selectedCampaign) { setError('Selecteer eerst een campagne'); return }
+    const camp = campaigns.find(c => c.id === selectedCampaign)
+    if (!confirm(
+      `Alle contacten in "${camp?.name}" PERMANENT verwijderen?\n\n` +
+      `Dit kan niet ongedaan worden gemaakt. U kunt daarna opnieuw importeren.`
+    )) return
+
+    setClearing(true)
+    setError('')
+    try {
+      const res = await api.delete(`/contacts/clear-campaign/${selectedCampaign}`)
+      setImportResult({
+        message: `✅ ${res.deleted_count} contacten verwijderd. U kunt nu opnieuw importeren.`,
+        stats: { imported: 0, skipped_duplicate: 0, skipped_dnc: 0, skipped_no_phone: 0, errors: 0, total_rows: res.deleted_count }
+      })
+    } catch (e) {
+      setError(e.message || 'Verwijderen mislukt')
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -120,8 +144,10 @@ export default function ContactsTab() {
     dropText: { fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500, marginBottom: 4 },
     dropSub:  { fontSize: 11, color: 'var(--color-text-secondary)' },
     dropBtn:  { display: 'inline-block', marginTop: 10, padding: '7px 16px', borderRadius: 7, background: '#1d6fb8', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', fontWeight: 500 },
-    resetBar: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'var(--color-background-warning)', borderRadius: 8, marginBottom: 16, fontSize: 12 },
+    resetBar: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'var(--color-background-warning)', borderRadius: 8, marginBottom: 8, fontSize: 12 },
     resetBtn: { padding: '6px 14px', borderRadius: 7, background: '#92400e', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', fontWeight: 500, flexShrink: 0 },
+    clearBar: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'var(--color-background-danger)', borderRadius: 8, marginBottom: 16, fontSize: 12 },
+    clearBtn: { padding: '6px 14px', borderRadius: 7, background: '#b91c1c', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', fontWeight: 500, flexShrink: 0 },
     progress: { padding: '16px 20px', background: 'var(--color-background-info)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-info)', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 },
     spinner:  { width: 16, height: 16, border: '2px solid var(--color-border-info)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
     results:  { background: 'var(--color-background-secondary)', borderRadius: 8, padding: 16, marginBottom: 16 },
@@ -172,6 +198,20 @@ export default function ContactsTab() {
               disabled={resetting || !selectedCampaign}
             >
               {resetting ? 'Bezig…' : '🔄 Reset contacten'}
+            </button>
+          </div>
+
+          {/* Clear bar */}
+          <div style={s.clearBar}>
+            <div style={{ flex: 1, color: 'var(--color-text-danger)' }}>
+              <strong>Nieuwe import?</strong> Verwijder alle contacten uit deze campagne permanent zodat u opnieuw kunt importeren.
+            </div>
+            <button
+              style={s.clearBtn}
+              onClick={handleClear}
+              disabled={clearing || !selectedCampaign}
+            >
+              {clearing ? 'Bezig…' : '🗑 Verwijder contacten'}
             </button>
           </div>
 

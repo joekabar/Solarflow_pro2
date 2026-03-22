@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -29,18 +31,36 @@ app = FastAPI(
 )
 
 # ── CORS ─────────────────────────────────────────────────────
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173"
-).split(",")
+# Auth is enforced via JWT bearer tokens, so wildcard origin is safe.
+# To restrict in future, set ALLOWED_ORIGINS env var (comma-separated).
+_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = _origins_env.split(",") if _origins_env != "*" else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=ALLOWED_ORIGINS != ["*"],  # credentials=True incompatible with wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Global exception handler ──────────────────────────────────
+# When unhandled exceptions escape the route, Starlette sends a bare 500
+# *before* CORSMiddleware can inject headers — the browser then reports it
+# as a CORS error even though CORS is configured correctly.
+# This handler catches every unhandled exception inside the app so FastAPI
+# always returns a proper JSON response with CORS headers included.
+
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error": str(exc)},
+    )
+
 
 # ── Routers ──────────────────────────────────────────────────
 app.include_router(auth_router,       prefix="/api/auth")
