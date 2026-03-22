@@ -32,9 +32,7 @@ app = FastAPI(
 )
 
 # ── CORS ─────────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-   ALLOWED_ORIGINS = os.getenv(
+ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
     "http://localhost:5173"
 ).split(",")
@@ -46,6 +44,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ── Routers ──────────────────────────────────────────────────
 app.include_router(auth_router,       prefix="/api/auth")
