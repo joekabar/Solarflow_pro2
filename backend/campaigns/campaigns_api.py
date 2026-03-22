@@ -96,7 +96,6 @@ async def update_campaign(
     db=Depends(get_supabase),
 ):
     """Update a campaign. Admin/supervisor only."""
-    # Verify campaign belongs to this org
     existing = db.table("campaigns") \
         .select("id") \
         .eq("id", campaign_id) \
@@ -125,7 +124,11 @@ async def delete_campaign(
     agent: AgentContext = Depends(require_role("admin")),
     db=Depends(get_supabase),
 ):
-    """Delete a campaign. Admin only. Contacts are not deleted."""
+    """
+    Delete a campaign. Admin only.
+    Nulls out campaign_id on contacts, call_logs and appointments
+    before deleting to satisfy foreign key constraints.
+    """
     existing = db.table("campaigns") \
         .select("id") \
         .eq("id", campaign_id) \
@@ -136,8 +139,18 @@ async def delete_campaign(
     if not existing.data:
         raise HTTPException(404, "Campaign not found")
 
-    # Remove campaign reference from contacts first
+    # Null out FK references before deleting
     db.table("contacts") \
+        .update({"campaign_id": None}) \
+        .eq("campaign_id", campaign_id) \
+        .execute()
+
+    db.table("call_logs") \
+        .update({"campaign_id": None}) \
+        .eq("campaign_id", campaign_id) \
+        .execute()
+
+    db.table("appointments") \
         .update({"campaign_id": None}) \
         .eq("campaign_id", campaign_id) \
         .execute()
