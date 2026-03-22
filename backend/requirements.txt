@@ -1,11 +1,36 @@
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-supabase==2.4.6
-python-multipart==0.0.9
-pydantic[email]==2.7.1
-apscheduler==3.10.4
-httpx==0.27.0
-openpyxl==3.1.4
-cryptography==42.0.8
-python-dotenv==1.0.1
-googlemaps==4.10.0
+# Core
+fastapi>=0.111,<1.0
+uvicorn[standard]>=0.30,<1.0
+python-dotenv>=1.0,<2.0
+pydantic[email]>=2.7,<3.0
+
+# Database
+supabase>=2.4.6,<3.0
+
+# Auth
+python-jose[cryptography]>=3.3,<4.0
+
+# Scheduling
+APScheduler>=3.10,<4.0
+
+# Data import
+openpyxl>=3.1,<4.0
+python-multipart>=0.0.9
+
+# Phone number handling
+phonenumbers>=8.13,<9.0
+
+# HTTP client
+httpx>=0.27,<1.0
+
+# Encryption
+cryptography>=42.0,<45.0
+
+# Maps / Solar API
+googlemaps>=4.10,<5.0
+
+# ── Telephony ──────────────────────────────
+twilio>=9.0,<10.0
+
+# ── v2 additions (uncomment when deploying v2) ──
+# httpx>=0.27,<1.0   # already included above
