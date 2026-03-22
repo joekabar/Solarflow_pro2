@@ -2,17 +2,22 @@
 import { create } from 'zustand'
 
 export const useCallStore = create((set, get) => ({
-  contact:        null,
-  callStatus:     'idle',   // idle | loading | active | wrapup
+  contact:         null,
+  callStatus:      'idle',   // idle | loading | active | wrapup
   callDurationSec: 0,
-  callStartedAt:  null,
-  waitSeconds:    0,
-  _timer:         null,
-  _waitTimer:     null,
+  callStartedAt:   null,
+  waitSeconds:     0,
+  scriptStep:      'intro',
+  _timer:          null,
+  _waitTimer:      null,
 
   setContact:    (c) => set({ contact: c }),
   clearContact:  ()  => set({ contact: null }),
   setCallStatus: (s) => set({ callStatus: s }),
+  setScriptStep: (step) => set({ scriptStep: step }),
+
+  // Used by AgentWorkspace interval ticker
+  tickDuration: () => set((s) => ({ callDurationSec: s.callDurationSec + 1 })),
 
   setWaitSeconds: (seconds) => {
     const { _waitTimer } = get()
@@ -49,6 +54,9 @@ export const useCallStore = create((set, get) => ({
   resetCall: () => {
     const { _timer } = get()
     if (_timer) clearInterval(_timer)
-    set({ contact: null, callStatus: 'idle', callDurationSec: 0, callStartedAt: null, _timer: null })
+    set({
+      contact: null, callStatus: 'idle', callDurationSec: 0,
+      callStartedAt: null, scriptStep: 'intro', _timer: null,
+    })
   },
 }))

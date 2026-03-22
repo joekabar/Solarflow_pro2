@@ -1,34 +1,13 @@
-import { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+// frontend/src/App.jsx
+// NOTE: This file is no longer the app entry point.
+// Session restore and routing are handled in main.jsx → <Root>.
+// This file is kept as a safe stub in case anything imports it.
+
+import { Navigate } from 'react-router-dom'
 import { useAgentStore } from './store/agentStore'
-import { AppRoutes } from './routes'
-import LoginPage from './pages/LoginPage'
 
 export default function App() {
-  const { user, setUser, clearUser } = useAgentStore()
-
-  useEffect(() => {
-    const saved = localStorage.getItem('sfp_session')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        const payload = JSON.parse(atob(parsed.access_token.split('.')[1]))
-        if (payload.exp * 1000 > Date.now()) {
-          setUser(parsed)
-        } else {
-          clearUser()
-        }
-      } catch {
-        clearUser()
-      }
-    }
-  }, [])
-
-  return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/*"     element={<AppRoutes />} />
-      <Route index         element={<Navigate to="/login" replace />} />
-    </Routes>
-  )
+  const { user } = useAgentStore()
+  if (!user) return <Navigate to="/login" replace />
+  return <Navigate to="/" replace />
 }
