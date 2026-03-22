@@ -9,7 +9,7 @@ Swapping Twilio → Asterisk requires ZERO changes to this file.
 
 Integrates with existing SolarFlow Pro patterns:
   - Uses the same auth/role_guard as other routes
-  - Logs calls to the same call_log table
+  - Logs calls to the same call_logs table
   - Respects the same rate limiter
   - Uses the same org_id from the JWT
 """
@@ -101,7 +101,7 @@ async def get_telephony_token(deps=Depends(_get_org_provider)):
 
     result = await provider.generate_token(
         agent_id=agent.id,
-        agent_name=f"{agent.first_name} {agent.last_name}",
+        agent_name=getattr(agent, 'full_name', '') or str(agent.id),
     )
 
     if result is None:
@@ -143,7 +143,7 @@ async def make_call(body: MakeCallRequest, deps=Depends(_get_org_provider)):
     )
 
     # Log to Supabase call_log
-    db.table("call_log").insert({
+    db.table("call_logs").insert({
         "org_id":       agent.org_id,
         "agent_id":     agent.id,
         "contact_id":   body.contact_id,
@@ -244,7 +244,7 @@ async def webhook_voice(request: Request, db=Depends(get_supabase)):
     body = dict(form)
 
     # Determine which org this call belongs to by looking up the CallSid
-    call_log = db.table("call_log").select("org_id").eq(
+    call_log = db.table("call_logs").select("org_id").eq(
         "call_sid", body.get("CallSid", "")
     ).single().execute()
 
@@ -276,7 +276,7 @@ async def webhook_status(request: Request, db=Depends(get_supabase)):
     call_sid = body.get("CallSid", "")
 
     # Look up org for this call
-    call_log = db.table("call_log").select("org_id, id").eq(
+    call_log = db.table("call_logs").select("org_id, id").eq(
         "call_sid", call_sid
     ).single().execute()
 
@@ -295,7 +295,7 @@ async def webhook_status(request: Request, db=Depends(get_supabase)):
     if event.recording_url:
         update["recording_url"] = event.recording_url
 
-    db.table("call_log").update(update).eq("id", call_log.data["id"]).execute()
+    db.table("call_logs").update(update).eq("id", call_log.data["id"]).execute()
 
     logger.info(f"Call {call_sid}: status → {event.state.value}")
     return {"status": "ok"}
@@ -308,7 +308,7 @@ async def webhook_hold(request: Request, db=Depends(get_supabase)):
     body = dict(form)
     call_sid = body.get("CallSid", "")
 
-    call_log = db.table("call_log").select("org_id").eq(
+    call_log = db.table("call_logs").select("org_id").eq(
         "call_sid", call_sid
     ).single().execute()
 
@@ -335,7 +335,7 @@ async def webhook_recording(request: Request, db=Depends(get_supabase)):
     recording_url = body.get("RecordingUrl", "")
 
     if call_sid and recording_url:
-        db.table("call_log").update(
+        db.table("call_logs").update(
             {"recording_url": recording_url}
         ).eq("call_sid", call_sid).execute()
 
