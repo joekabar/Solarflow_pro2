@@ -122,7 +122,11 @@ async def import_contacts(
     }
 
     try:
-        existing_result = db.table("contacts").select("phone").eq("org_id", agent.org_id).execute()
+        # Duplicate check is per-campaign: same phone can exist in different campaigns
+        existing_result = db.table("contacts").select("phone") \
+            .eq("org_id", agent.org_id) \
+            .eq("campaign_id", campaign_id) \
+            .execute()
         existing_phones = {_normalise_phone(r["phone"]) for r in (existing_result.data or [])}
     except Exception as e:
         print(f"[import] Failed to load existing phones: {e}")

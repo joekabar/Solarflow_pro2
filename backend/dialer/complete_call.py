@@ -69,18 +69,24 @@ async def complete_call(
         if not body.callback_at:
             raise HTTPException(400, "Terugbeldatum is verplicht")
 
-    # Verify contact exists and is locked by this agent
+    # Verify contact exists and belongs to this org
     row = db.table("contacts") \
-        .select("locked_by, phone, first_name, last_name, org_id, call_count") \
+        .select("locked_by, phone, first_name, last_name, org_id, call_count, last_outcome") \
         .eq("id", body.contact_id) \
+        .eq("org_id", agent.org_id) \
         .single() \
         .execute()
 
     if not row.data:
         raise HTTPException(404, "Contact not found")
 
-    if row.data["locked_by"] != agent.id:
-        raise HTTPException(403, "Lock not held")
+    locked_by = row.data.get("locked_by")
+    if locked_by and locked_by != agent.id:
+        # Another agent actively holds the lock — block unless already completed
+        if row.data.get("last_outcome"):
+            raise HTTPException(409, "Contact was already completed by another agent")
+        raise HTTPException(403, "Lock held by another agent")
+    # locked_by is None (lock expired during a long call) or held by this agent → allow
 
     contact = row.data
     new_status = OUTCOME_STATUS.get(body.outcome, "called")
