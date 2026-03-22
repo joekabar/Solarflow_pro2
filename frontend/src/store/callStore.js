@@ -2,19 +2,18 @@
 import { create } from 'zustand'
 
 export const useCallStore = create((set, get) => ({
-  contact: null,
-  callStatus: 'idle',
+  contact:        null,
+  callStatus:     'idle',   // idle | loading | active | wrapup
   callDurationSec: 0,
-  callStartedAt: null,
-  waitSeconds: 0,        // ← ADD
-  _timer: null,
-  _waitTimer: null,      // ← ADD
+  callStartedAt:  null,
+  waitSeconds:    0,
+  _timer:         null,
+  _waitTimer:     null,
 
-  setContact: (c) => set({ contact: c }),
-  clearContact: () => set({ contact: null }),       // ← ADD (useContacts uses this)
-  setCallStatus: (s) => set({ callStatus: s }),     // ← ADD (useContacts uses this)
+  setContact:    (c) => set({ contact: c }),
+  clearContact:  ()  => set({ contact: null }),
+  setCallStatus: (s) => set({ callStatus: s }),
 
-  // ← ADD: self-contained countdown, no updater function needed
   setWaitSeconds: (seconds) => {
     const { _waitTimer } = get()
     if (_waitTimer) clearInterval(_waitTimer)
