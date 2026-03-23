@@ -163,7 +163,7 @@ class TwilioProvider(TelephonyProvider):
     async def hold(self, call_id: str) -> CallResult:
         """Redirect the call to a TwiML that plays hold music."""
         hold_url = f"{self.credentials.webhook_base_url}/api/telephony/webhook/hold"
-        call = self.client.calls(call_id).update(url=hold_url, method="POST")
+        self.client.calls(call_id).update(url=hold_url, method="POST")
         return CallResult(
             call_id=call_id,
             state=CallState.ON_HOLD,
@@ -173,7 +173,7 @@ class TwilioProvider(TelephonyProvider):
     async def unhold(self, call_id: str) -> CallResult:
         """Redirect back to the normal voice webhook."""
         voice_url = f"{self.credentials.webhook_base_url}/api/telephony/webhook/voice"
-        call = self.client.calls(call_id).update(url=voice_url, method="POST")
+        self.client.calls(call_id).update(url=voice_url, method="POST")
         return CallResult(
             call_id=call_id,
             state=CallState.IN_PROGRESS,

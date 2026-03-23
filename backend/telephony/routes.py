@@ -21,11 +21,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from auth.jwt_validator import get_current_agent
 from auth.role_guard import require_role
 from db import get_supabase
 from .factory import get_provider, get_available_providers, encrypt_credentials
-from .base import TelephonyCredentials, CallState
+from .base import TelephonyCredentials
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["telephony"])
@@ -209,7 +208,7 @@ async def unmute_call(body: CallControlRequest, deps=Depends(_get_org_provider))
 @router.post("/call/dtmf")
 async def send_dtmf(body: DtmfRequest, deps=Depends(_get_org_provider)):
     provider, agent, db = deps
-    result = await provider.send_dtmf(body.call_id, body.digits)
+    await provider.send_dtmf(body.call_id, body.digits)
     return {"status": "ok"}
 
 
@@ -232,7 +231,7 @@ async def start_recording(body: CallControlRequest, deps=Depends(_get_org_provid
 @router.post("/call/record/stop")
 async def stop_recording(body: CallControlRequest, deps=Depends(_get_org_provider)):
     provider, agent, db = deps
-    result = await provider.stop_recording(body.call_id)
+    await provider.stop_recording(body.call_id)
     return {"status": "ok"}
 
 
@@ -387,13 +386,6 @@ async def webhook_recording(request: Request, db=Depends(get_supabase)):
     return {"status": "ok"}
 
 
-@router.post("/webhook/dial-complete")
-async def webhook_dial_complete(request: Request, db=Depends(get_supabase)):
-    """Handle the end of a <Dial> verb."""
-    form = await request.form()
-    body = dict(form)
-    # The call has ended — just acknowledge
-    return Response(content="<Response></Response>", media_type="application/xml")
 
 
 # ── 6. Admin: setup & manage telephony ────────────────────────
