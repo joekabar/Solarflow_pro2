@@ -286,13 +286,28 @@ async def webhook_voice(request: Request, db=Depends(get_supabase)):
             logger.warning(f"webhook_voice: could not resolve org for CallSid={call_sid} From={from_field}")
             return _twiml_error("Call not recognized.")
 
+        # Derive base URL from the request so action URLs are always absolute
+        base_url = f"{request.url.scheme}://{request.url.netloc}"
+
         provider = await get_provider(org_id, db, ENCRYPTION_KEY)
-        twiml = await provider.build_dial_response(to=to_number)
+        twiml = await provider.build_dial_response(to=to_number, base_url=base_url)
         return Response(content=twiml, media_type="application/xml")
 
     except Exception as exc:
         logger.error(f"webhook_voice exception: {exc}", exc_info=exc)
         return _twiml_error("An internal error occurred. Please try again.")
+
+
+@router.post("/webhook/dial-complete")
+async def webhook_dial_complete(request: Request):
+    """
+    Called by Twilio when the <Dial> leg ends (callee hangs up).
+    We just hang up the caller's leg too.
+    """
+    return Response(
+        content="<Response><Hangup/></Response>",
+        media_type="application/xml",
+    )
 
 
 @router.post("/webhook/status")

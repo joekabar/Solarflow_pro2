@@ -307,18 +307,24 @@ class TwilioProvider(TelephonyProvider):
         caller_name: Optional[str] = None,
         record: bool = False,
         timeout: int = 30,
+        base_url: Optional[str] = None,
     ) -> str:
         """Build TwiML for dialing a phone number."""
         raw_caller = from_number or self.credentials.phone_number or ""
         # Ensure caller_id is E.164 (+XXXXXXXXXXX)
         if raw_caller and not raw_caller.startswith("+"):
             raw_caller = f"+{''.join(c for c in raw_caller if c.isdigit())}"
+
+        # Build action URL from request base_url (reliable) or fall back to stored value
+        _base = (base_url or self.credentials.webhook_base_url or "").rstrip("/")
+        action_url = f"{_base}/api/telephony/webhook/dial-complete" if _base else None
+
         response = VoiceResponse()
         dial = response.dial(
             caller_id=raw_caller,
             timeout=timeout,
             record="record-from-answer-dual" if record else "do-not-record",
-            action=f"{self.credentials.webhook_base_url}/api/telephony/webhook/dial-complete",
+            **({"action": action_url} if action_url else {}),
         )
         dial.number(to)
         return str(response)
