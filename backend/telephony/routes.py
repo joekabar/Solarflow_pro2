@@ -375,6 +375,48 @@ async def list_providers(agent=Depends(require_role("admin"))):
     return await get_available_providers()
 
 
+@router.get("/setup")
+async def get_telephony_setup(
+    agent=Depends(require_role("admin")),
+    db=Depends(get_supabase),
+):
+    """
+    Return masked credential summary for the admin UI.
+    Sensitive fields are partially masked — never returns raw secrets.
+    """
+    result = db.table("organizations").select(
+        "telephony_provider, telephony_credentials_encrypted"
+    ).eq("id", agent.org_id).single().execute()
+
+    org = result.data if result.data else {}
+    provider_name = org.get("telephony_provider", "manual")
+    encrypted = org.get("telephony_credentials_encrypted")
+
+    if not encrypted or provider_name == "manual":
+        return {"provider": "manual", "configured": False}
+
+    try:
+        from .factory import decrypt_credentials
+        creds = decrypt_credentials(encrypted, ENCRYPTION_KEY)
+    except Exception as e:
+        return {"provider": provider_name, "configured": True, "error": f"Decryption failed: {e}"}
+
+    def mask(val: str | None, show: int = 6) -> str | None:
+        if not val:
+            return None
+        return val[:show] + "***" if len(val) > show else val
+
+    return {
+        "provider":         provider_name,
+        "configured":       True,
+        "account_sid":      mask(creds.account_sid),
+        "api_key_sid":      mask(creds.api_key_sid),
+        "twiml_app_sid":    creds.twiml_app_sid,   # shown in full — not a secret
+        "phone_number":     creds.phone_number,
+        "webhook_base_url": creds.webhook_base_url,
+    }
+
+
 @router.get("/numbers")
 async def list_phone_numbers(deps=Depends(_get_org_provider)):
     """List phone numbers on the org's telephony account."""
