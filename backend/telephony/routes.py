@@ -297,11 +297,11 @@ async def webhook_voice(request: Request, db=Depends(get_supabase)):
         return _twiml_error("An internal error occurred. Please try again.")
 
 
-@router.post("/webhook/dial-complete")
+@router.api_route("/webhook/dial-complete", methods=["GET", "POST"])
 async def webhook_dial_complete(request: Request):
     """
-    Called by Twilio when the <Dial> leg ends (callee hangs up).
-    We just hang up the caller's leg too.
+    Called by Twilio when the <Dial> leg ends.
+    Twilio uses GET on dial failure (e.g. no international permission), POST on normal end.
     """
     return Response(
         content="<Response><Hangup/></Response>",
