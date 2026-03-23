@@ -13,7 +13,7 @@ Belgian/Dutch calling rules:
   - Calling a DNC number = GDPR violation + potential fine
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from auth.role_guard import require_role

@@ -12,7 +12,7 @@ Also handles credential encryption/decryption from Supabase.
 
 import json
 import logging
-from typing import Optional, Dict, Type
+from typing import Dict, Type
 
 from cryptography.fernet import Fernet
 

@@ -16,7 +16,6 @@ Charge this back to the customer as a usage fee or include in Pro plan.
 
 import os
 import httpx
-from typing import Optional
 
 WA_BASE_URL = "https://waba.360dialog.io/v1/messages"
 WA_API_KEY  = os.getenv("WHATSAPP_360DIALOG_KEY")

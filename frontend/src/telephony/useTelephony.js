@@ -86,7 +86,12 @@ export function useTelephony() {
         onReady:        () => setDeviceReady(true),
         onError:        (e) => { setError(e.message || String(e)); setCallState('idle') },
         onIncoming:     (conn) => { connectionRef.current = conn; setCallState('ringing') },
-        onConnect:      (conn) => { connectionRef.current = conn; setCallState('in_progress') },
+        onConnect:      (conn) => {
+          connectionRef.current = conn
+          // CallSid may only be available after accept — capture it now
+          if (conn?.callId) setCallId(conn.callId)
+          setCallState('in_progress')
+        },
         onDisconnect:   () => { connectionRef.current = null; setCallState('completed') },
         onCallState:    (state) => setCallState(state),
       })

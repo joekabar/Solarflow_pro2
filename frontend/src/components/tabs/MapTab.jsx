@@ -34,10 +34,7 @@ export default function MapTab() {
         <button style={s.btn}>Satellite</button>
         <button style={s.btn}>Street view</button>
       </div>
-      {BING_KEY
-        ? <iframe style={s.frame} src={mapSrc} title="Property map" frameBorder="0" allowFullScreen/>
-        : <div style={s.empty}>Add VITE_BING_MAPS_KEY to .env to enable the map</div>
-      }
+      <iframe style={s.frame} src={mapSrc} title="Property map" frameBorder="0" allowFullScreen/>
       <RoofIntelligencePanel onOpenROI={(d) => { setRoofData(d); setShowROI(true) }} />
       {showROI && <ROICalculator roofData={roofData} onClose={() => setShowROI(false)} />}
     </div>

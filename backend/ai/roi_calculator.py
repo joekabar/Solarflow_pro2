@@ -16,7 +16,6 @@ import uuid
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from dataclasses import dataclass, asdict
-from typing import Optional
 
 from auth.role_guard import require_role
 from auth.jwt_validator import AgentContext

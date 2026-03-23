@@ -11,7 +11,6 @@ import csv
 import traceback
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from typing import Optional
 
 from auth.role_guard import require_role
 from auth.jwt_validator import AgentContext
@@ -253,9 +252,11 @@ async def import_contacts(
 
 def _get_field(row, col_map, field):
     col_name = col_map.get(field, "")
-    if not col_name: return None
+    if not col_name:
+        return None
     val = row.get(col_name, "")
-    if val is None: return None
+    if val is None:
+        return None
     return str(val).strip() or None
 
 
@@ -271,7 +272,8 @@ def _parse_excel(content):
         wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
-        if not rows: return []
+        if not rows:
+            return []
         headers = [str(h).strip().lower() if h else "" for h in rows[0]]
         return [
             {headers[i]: (str(v).strip() if v is not None else "") for i, v in enumerate(row)}

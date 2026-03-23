@@ -2,26 +2,28 @@
 SolarFlow Pro — FastAPI Backend
 """
 
-from dotenv import load_dotenv
-load_dotenv()
-
 import os
 import logging
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from dotenv import load_dotenv
 
-from auth.session_manager    import router as auth_router
-from auth.platform_admin     import router as platform_router
-from auth.user_management    import router as user_router
-from dialer.next_contact     import router as dialer_router
-from dialer.complete_call    import router as complete_router
-from dialer.lock_cleanup     import release_expired_locks
-from contacts.import_csv     import router as import_router
-from compliance.dnc          import router as dnc_router
-from campaigns.campaigns_api import router as campaigns_router
-from telephony.routes        import router as telephony_router
+load_dotenv()  # must run before app modules that read env vars at import time
+
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from apscheduler.schedulers.asyncio import AsyncIOScheduler  # noqa: E402
+
+from auth.session_manager    import router as auth_router       # noqa: E402
+from auth.platform_admin     import router as platform_router   # noqa: E402
+from auth.user_management    import router as user_router       # noqa: E402
+from dialer.next_contact     import router as dialer_router     # noqa: E402
+from dialer.complete_call    import router as complete_router   # noqa: E402
+from dialer.lock_cleanup     import release_expired_locks       # noqa: E402
+from contacts.import_csv     import router as import_router     # noqa: E402
+from compliance.dnc          import router as dnc_router        # noqa: E402
+from campaigns.campaigns_api import router as campaigns_router  # noqa: E402
+from telephony.routes        import router as telephony_router  # noqa: E402
+from reports.reports_api     import router as reports_router    # noqa: E402
 # from ai.roi_calculator     import router as roi_router  # v2
 
 app = FastAPI(
@@ -72,6 +74,7 @@ app.include_router(import_router,     prefix="/api/contacts")
 app.include_router(dnc_router,        prefix="/api/compliance")
 app.include_router(campaigns_router,  prefix="/api/campaigns")
 app.include_router(telephony_router,  prefix="/api/telephony")
+app.include_router(reports_router,    prefix="/api/reports")
 # app.include_router(roi_router,      prefix="/api/ai")  # v2
 
 # ── Background scheduler ─────────────────────────────────────
