@@ -309,9 +309,13 @@ class TwilioProvider(TelephonyProvider):
         timeout: int = 30,
     ) -> str:
         """Build TwiML for dialing a phone number."""
+        raw_caller = from_number or self.credentials.phone_number or ""
+        # Ensure caller_id is E.164 (+XXXXXXXXXXX)
+        if raw_caller and not raw_caller.startswith("+"):
+            raw_caller = f"+{''.join(c for c in raw_caller if c.isdigit())}"
         response = VoiceResponse()
         dial = response.dial(
-            caller_id=from_number or self.credentials.phone_number,
+            caller_id=raw_caller,
             timeout=timeout,
             record="record-from-answer-dual" if record else "do-not-record",
             action=f"{self.credentials.webhook_base_url}/api/telephony/webhook/dial-complete",
