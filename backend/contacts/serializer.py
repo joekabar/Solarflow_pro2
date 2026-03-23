@@ -53,18 +53,27 @@ def serialize_contact(contact: dict, agent: AgentContext) -> dict:
     # Agent view: pick only allowed fields
     result = {k: contact[k] for k in AGENT_FIELDS if k in contact}
 
-    # Mask phone number in the response
-    # Full number is sent as a separate 'phone_dial' field
-    # used server-side only — the UI shows the masked version
+    # Mask phone number for display; keep dialable E.164 number for VoIP SDK
     if result.get("phone"):
         result["phone_masked"] = _mask_phone(result["phone"])
-        # Remove the raw phone — agent sees masked, Twilio uses server token
-        del result["phone"]
+        result["phone_e164"]   = _to_e164(result["phone"])  # +32XXXXXXXXX for Twilio
+        del result["phone"]                                  # raw field replaced by masked + e164
 
     # Flag: has this contact's address been verified yet?
     result["address_verified"] = bool(result.get("street_verified"))
 
     return result
+
+
+def _to_e164(phone: str) -> str:
+    """
+    Ensure the phone number is in E.164 format (+XXXXXXXXXXX) for Twilio.
+    Stored format is digits-only: 32470123456 → +32470123456
+    """
+    if not phone:
+        return phone
+    digits = "".join(c for c in phone if c.isdigit())
+    return f"+{digits}" if digits else phone
 
 
 def _mask_phone(phone: str) -> str:

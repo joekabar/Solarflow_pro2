@@ -64,9 +64,10 @@ export default function PhoneTab({ onTabChange }) {
   // ── Handlers ───────────────────────────────────────────────
 
   async function handleStartCall() {
-    if (isVoip && contact?.phone) {
+    const dialNumber = contact?.phone_e164 || contact?.phone
+    if (isVoip && dialNumber) {
       // VoIP: browser-initiated call via provider SDK
-      await makeCall(contact.phone)
+      await makeCall(dialNumber)
     } else {
       // Manual: agent already dialed on own phone
       startCall()
@@ -186,7 +187,7 @@ export default function PhoneTab({ onTabChange }) {
 
         {/* Phone number */}
         <div style={s.phone}>
-          {isVoip ? contact.phone : (contact.phone_masked || contact.phone)}
+          {contact.phone_masked || contact.phone_e164 || contact.phone}
         </div>
         <div style={s.tlab}>
           {!isCallActive && !isVoip && 'Bel dit nummer op je telefoon, klik dan op Start'}
