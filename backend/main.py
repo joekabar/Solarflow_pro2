@@ -22,6 +22,7 @@ from contacts.import_csv     import router as import_router
 from compliance.dnc          import router as dnc_router
 from campaigns.campaigns_api import router as campaigns_router
 from telephony.routes        import router as telephony_router
+from reports.reports_api     import router as reports_router
 # from ai.roi_calculator     import router as roi_router  # v2
 
 app = FastAPI(
@@ -72,6 +73,7 @@ app.include_router(import_router,     prefix="/api/contacts")
 app.include_router(dnc_router,        prefix="/api/compliance")
 app.include_router(campaigns_router,  prefix="/api/campaigns")
 app.include_router(telephony_router,  prefix="/api/telephony")
+app.include_router(reports_router,    prefix="/api/reports")
 # app.include_router(roi_router,      prefix="/api/ai")  # v2
 
 # ── Background scheduler ─────────────────────────────────────
