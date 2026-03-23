@@ -14,6 +14,13 @@ const COUNTRIES = [
   { value: 'DE', label: 'Duitsland' },
 ]
 
+const DIALING_MODES = [
+  { value: 'preview',     label: 'Preview',     desc: 'Agent klikt zelf op bellen (standaard)' },
+  { value: 'power',       label: 'Power',       desc: 'Auto-dial 5 s na afloop gesprek (VoIP)' },
+  { value: 'progressive', label: 'Progressief', desc: 'Auto-laad volgend contact, agent belt zelf' },
+  { value: 'predictive',  label: 'Predictief',  desc: 'Systeem belt voor voor maximale bezettingsgraad' },
+]
+
 const RATE_PRESETS = [
   { label: 'Geen limiet',        value: 0,    desc: 'Onbeperkt contacten ophalen' },
   { label: '120 per uur',        value: 30,   desc: '1 contact per 30 seconden' },
@@ -52,6 +59,7 @@ export default function CampaignsTab() {
     contact_interval_sec: 45,
     calling_hours_start: '09:00',
     calling_hours_end: '20:00',
+    dialing_mode: 'preview',
   })
 
   useEffect(() => { loadCampaigns() }, [])
@@ -70,7 +78,7 @@ export default function CampaignsTab() {
 
   function openCreate() {
     setEditing(null)
-    setForm({ name: '', country: 'BE', contact_interval_sec: 45, calling_hours_start: '09:00', calling_hours_end: '20:00' })
+    setForm({ name: '', country: 'BE', contact_interval_sec: 45, calling_hours_start: '09:00', calling_hours_end: '20:00', dialing_mode: 'preview' })
     setRatePreset(45)
     setCustomRate('')
     setShowForm(true)
@@ -86,6 +94,7 @@ export default function CampaignsTab() {
       contact_interval_sec: interval,
       calling_hours_start: c.calling_hours_start || '09:00',
       calling_hours_end: c.calling_hours_end || '20:00',
+      dialing_mode: c.dialing_mode || 'preview',
     })
     // Check if interval matches a preset
     const preset = RATE_PRESETS.find(p => p.value === interval)
@@ -127,6 +136,7 @@ export default function CampaignsTab() {
         calling_hours_start: form.calling_hours_start,
         calling_hours_end: form.calling_hours_end,
         contact_interval_sec: form.contact_interval_sec,
+        dialing_mode: form.dialing_mode,
       }
 
       if (editing) {
@@ -171,8 +181,8 @@ export default function CampaignsTab() {
     btnP:  { padding: '7px 14px', borderRadius: 7, background: '#1d6fb8', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', fontWeight: 500 },
     btn:   { padding: '5px 10px', borderRadius: 6, border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', fontSize: 11, cursor: 'pointer' },
     btnD:  { padding: '5px 10px', borderRadius: 6, border: '0.5px solid var(--color-border-danger)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', fontSize: 11, cursor: 'pointer' },
-    row:   { display: 'grid', gridTemplateColumns: '1fr 80px 120px 100px 120px 150px', alignItems: 'center', padding: '12px 20px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 12 },
-    rowH:  { display: 'grid', gridTemplateColumns: '1fr 80px 120px 100px 120px 150px', padding: '8px 20px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 12, background: 'var(--color-background-secondary)' },
+    row:   { display: 'grid', gridTemplateColumns: '1fr 80px 90px 100px 100px 120px 150px', alignItems: 'center', padding: '12px 20px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 12 },
+    rowH:  { display: 'grid', gridTemplateColumns: '1fr 80px 90px 100px 100px 120px 150px', padding: '8px 20px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 12, background: 'var(--color-background-secondary)' },
     th:    { fontSize: 10, fontWeight: 500, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.06em' },
     name:  { fontSize: 13, fontWeight: 500 },
     sub:   { fontSize: 11, color: 'var(--color-text-secondary)' },
@@ -216,6 +226,7 @@ export default function CampaignsTab() {
           <div style={s.rowH}>
             <div style={s.th}>Naam</div>
             <div style={s.th}>Land</div>
+            <div style={s.th}>Modus</div>
             <div style={s.th}>Snelheid</div>
             <div style={s.th}>Status</div>
             <div style={s.th}>Beluren</div>
@@ -234,6 +245,7 @@ export default function CampaignsTab() {
             <div key={c.id} style={s.row}>
               <div style={s.name}>{c.name}</div>
               <div style={s.sub}>{COUNTRIES.find(x => x.value === c.country)?.label || c.country}</div>
+              <div style={s.sub}>{DIALING_MODES.find(m => m.value === (c.dialing_mode || 'preview'))?.label || c.dialing_mode}</div>
               <div style={s.sub}>{formatRate(c.contact_interval_sec)}</div>
               <div><span style={s.badge(c.status)}>{c.status}</span></div>
               <div style={s.sub}>{c.calling_hours_start} – {c.calling_hours_end}</div>
@@ -274,6 +286,22 @@ export default function CampaignsTab() {
                   <input style={s.fi} type="time" value={form.calling_hours_start} onChange={set('calling_hours_start')} />
                   <input style={s.fi} type="time" value={form.calling_hours_end} onChange={set('calling_hours_end')} />
                 </div>
+              </div>
+            </div>
+
+            <div style={s.fg}>
+              <div style={s.fl}>Dial-modus</div>
+              <div style={s.rateGrid}>
+                {DIALING_MODES.map(m => (
+                  <div
+                    key={m.value}
+                    style={s.rateOpt(form.dialing_mode === m.value)}
+                    onClick={() => setForm(f => ({ ...f, dialing_mode: m.value }))}
+                  >
+                    <div>{m.label}</div>
+                    <div style={s.rateDesc}>{m.desc}</div>
+                  </div>
+                ))}
               </div>
             </div>
 

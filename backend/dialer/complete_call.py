@@ -6,7 +6,8 @@ Completes a call, logs the outcome, and handles:
   - "callback"   → saves callback date, auto-queued for follow-up
   - other        → logs and moves to next contact
 """
-from fastapi import APIRouter, Depends, HTTPException
+import asyncio
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -49,9 +50,18 @@ OUTCOME_STATUS = {
 }
 
 
+WRAPUP_SEC = {
+    "preview":     0,
+    "power":       5,
+    "progressive": 15,
+    "predictive":  3,
+}
+
+
 @router.post("/complete-call")
 async def complete_call(
     body: CompleteCallRequest,
+    background_tasks: BackgroundTasks,
     agent: AgentContext = Depends(require_role("agent", "supervisor", "admin")),
     db=Depends(get_supabase),
 ):
@@ -200,10 +210,114 @@ async def complete_call(
     except Exception as e:
         print(f"[complete-call] Call log error: {e}")
 
-    return {
-        "status":         "ok",
-        "outcome":        body.outcome,
-        "new_status":     new_status,
-        "address_saved":  bool(body.street_verified),
-        "appointment":    appointment_result,
+    # ── Update agent state → wrapup ──
+    try:
+        from dialer.agent_state import record_call_end
+        record_call_end(agent.id, agent.org_id, body.duration_sec, db)
+    except Exception as e:
+        print(f"[complete-call] Agent state error: {e}")
+
+    # ── Look up campaign dialing mode ──
+    dialing_mode = "preview"
+    try:
+        camp = db.table("campaigns") \
+            .select("dialing_mode") \
+            .eq("id", body.campaign_id) \
+            .execute()
+        if camp.data:
+            dialing_mode = camp.data[0].get("dialing_mode") or "preview"
+    except Exception as e:
+        print(f"[complete-call] Dialing mode lookup error: {e}")
+
+    wrapup_sec = WRAPUP_SEC.get(dialing_mode, 0)
+
+    # ── Predictive: pre-dial next contact in background ──
+    if dialing_mode == "predictive":
+        background_tasks.add_task(
+            _predictive_predial,
+            agent_id=agent.id,
+            org_id=agent.org_id,
+            campaign_id=body.campaign_id,
+            delay_sec=wrapup_sec,
+        )
+
+    auto_dial = None if dialing_mode == "preview" else {
+        "mode":       dialing_mode,
+        "wrapup_sec": wrapup_sec,
     }
+
+    return {
+        "status":        "ok",
+        "outcome":       body.outcome,
+        "new_status":    new_status,
+        "address_saved": bool(body.street_verified),
+        "appointment":   appointment_result,
+        "auto_dial":     auto_dial,
+    }
+
+
+async def _predictive_predial(
+    agent_id: str,
+    org_id: str,
+    campaign_id: str,
+    delay_sec: int,
+) -> None:
+    """
+    Background task for predictive mode.
+    After the agent's wrap-up delay, pre-dials the next contact so the call
+    is already ringing (or answered) by the time the agent is ready.
+    The call routes to the agent's browser via the existing Twilio TwiML webhook.
+    """
+    import os
+    await asyncio.sleep(delay_sec)
+
+    db = get_supabase()
+
+    # Get next available contact for this agent
+    try:
+        result = db.rpc("get_next_contact", {
+            "p_org_id":      org_id,
+            "p_agent_id":    agent_id,
+            "p_campaign_id": campaign_id,
+        }).execute()
+    except Exception as e:
+        print(f"[predictive] RPC error: {e}")
+        return
+
+    if not result.data:
+        print(f"[predictive] Queue empty for agent {agent_id}")
+        return
+
+    contact = result.data[0]
+    phone = contact.get("phone") or contact.get("phone_e164")
+    if not phone:
+        return
+
+    # Initiate server-side call via telephony provider
+    try:
+        from telephony.factory import get_provider
+        encryption_key = os.getenv("CREDENTIAL_ENCRYPTION_KEY", "")
+        provider = await get_provider(org_id, db, encryption_key)
+        call_result = await provider.make_call(
+            to=phone,
+            from_number=None,
+            agent_id=agent_id,
+            metadata={
+                "contact_id":  contact["id"],
+                "campaign_id": campaign_id,
+                "org_id":      org_id,
+                "mode":        "predictive",
+            },
+        )
+        print(f"[predictive] Pre-dialed {phone} → call_id={call_result.call_id}")
+    except Exception as e:
+        print(f"[predictive] Pre-dial failed for {phone}: {e}")
+        # Release contact lock on failure
+        try:
+            db.table("contacts").update({
+                "locked_by":       None,
+                "locked_at":       None,
+                "lock_expires_at": None,
+            }).eq("id", contact["id"]).execute()
+        except Exception:
+            pass

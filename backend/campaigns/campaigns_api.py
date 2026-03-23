@@ -17,12 +17,16 @@ from db import get_supabase
 router = APIRouter()
 
 
+DIALING_MODES = {"preview", "power", "progressive", "predictive"}
+
+
 class CampaignCreate(BaseModel):
     name: str
     country: str = "BE"
     contact_interval_sec: Optional[int] = None
     calling_hours_start: str = "09:00"
     calling_hours_end: str = "20:00"
+    dialing_mode: str = "preview"
 
 
 class CampaignUpdate(BaseModel):
@@ -31,6 +35,7 @@ class CampaignUpdate(BaseModel):
     contact_interval_sec: Optional[int] = None
     calling_hours_start: Optional[str] = None
     calling_hours_end: Optional[str] = None
+    dialing_mode: Optional[str] = None
 
 
 @router.get("")
@@ -69,6 +74,9 @@ async def create_campaign(
     db=Depends(get_supabase),
 ):
     """Create a new campaign. Admin/supervisor only."""
+    if body.dialing_mode not in DIALING_MODES:
+        raise HTTPException(400, f"Invalid dialing_mode. Choose from: {', '.join(DIALING_MODES)}")
+
     data = {
         "org_id": agent.org_id,
         "name": body.name,
@@ -76,6 +84,7 @@ async def create_campaign(
         "status": "active",
         "calling_hours_start": body.calling_hours_start,
         "calling_hours_end": body.calling_hours_end,
+        "dialing_mode": body.dialing_mode,
     }
     if body.contact_interval_sec is not None:
         data["contact_interval_sec"] = body.contact_interval_sec
@@ -107,6 +116,8 @@ async def update_campaign(
         raise HTTPException(404, "Campaign not found")
 
     updates = {k: v for k, v in body.dict().items() if v is not None}
+    if "dialing_mode" in updates and updates["dialing_mode"] not in DIALING_MODES:
+        raise HTTPException(400, f"Invalid dialing_mode. Choose from: {', '.join(DIALING_MODES)}")
     if not updates:
         raise HTTPException(400, "No fields to update")
 

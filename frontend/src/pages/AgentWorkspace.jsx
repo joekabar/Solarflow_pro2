@@ -147,6 +147,11 @@ export default function AgentWorkspace() {
                     : `${Math.round(3600 / campaign.contact_interval_sec)}/uur`}
                 </span>
                 <span>{campaign.calling_hours_start?.slice(0,5)} – {campaign.calling_hours_end?.slice(0,5)}</span>
+                {campaign.dialing_mode && campaign.dialing_mode !== 'preview' && (
+                  <span style={{ padding: '1px 6px', borderRadius: 10, background: '#f0fdf4', color: '#166534', fontSize: 9, fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                    {campaign.dialing_mode}
+                  </span>
+                )}
               </div>
             )}
           </>
@@ -178,7 +183,7 @@ export default function AgentWorkspace() {
           </div>
           <div style={s.content}>
             {activeTab === 'map'    && <MapTab />}
-            {activeTab === 'phone'  && <PhoneTab />}
+            {activeTab === 'phone'  && <PhoneTab onTabChange={setActiveTab} />}
             {activeTab === 'form'   && <ContactFormTab />}
             {activeTab === 'agenda' && <AgendaTab />}
           </div>

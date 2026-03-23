@@ -1,28 +1,37 @@
 // frontend/src/components/tabs/PhoneTab.jsx
 // ─────────────────────────────────────────────
-// Tab 2: Softphone / manual dialer.
+// Tab 2: Softphone / dialer.
 //
-// Provider-agnostic: works with Twilio, Asterisk, manual, etc.
-// The useTelephony hook handles all provider specifics.
-//
-// Manual mode (trial):  shows number, agent dials on own phone, tracks timer
-// VoIP mode (paid):     browser-based softphone with full call controls
+// Dialing modes (set per-campaign by supervisor):
+//   preview     — agent manually clicks every step (current default)
+//   power       — 5 s wrap-up → auto-loads next contact → auto-dials (VoIP)
+//   progressive — 15 s wrap-up with cancel → auto-loads → agent clicks to dial
+//   predictive  — 3 s wrap-up → auto-loads next contact → auto-dials (VoIP)
+//                 (backend also pre-dials during wrap-up for predictive)
 // ─────────────────────────────────────────────
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useCallStore }     from '../../store/callStore'
 import { useCampaignStore } from '../../store/campaignStore'
 import { useContacts }      from '../../hooks/useContacts'
 import { useTelephony }     from '../../telephony/useTelephony'
 import ScriptPrompter       from '../script/ScriptPrompter'
 
+const MODE_LABEL = {
+  power:       'Power',
+  progressive: 'Progressief',
+  predictive:  'Predictief',
+}
+
 export default function PhoneTab({ onTabChange }) {
   const { contact, callStatus, callDurationSec,
           waitSeconds, setCallStatus, startCall, endCall, resetCall } = useCallStore()
   const { campaign }   = useCampaignStore()
   const { requestNextContact, completeCall, loading } = useContacts()
-  const [outcome, setOutcome] = useState('')
+  const [outcome, setOutcome]   = useState('')
   const [showDtmf, setShowDtmf] = useState(false)
+  const [wrapup,   setWrapup]   = useState(null)  // {mode, countdown} | null
+  const autoDialRef = useRef(false)               // true = dial as soon as contact loads
 
   // ── Telephony hook (provider-agnostic) ─────────────────────
   const {
@@ -45,45 +54,66 @@ export default function PhoneTab({ onTabChange }) {
     stopRecording,
   } = useTelephony()
 
-  const isVoip = provider !== 'manual'
+  const isVoip      = provider !== 'manual'
   const isCallActive = callStatus === 'active' || telCallState === 'in_progress'
 
   const fmt = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
-  // Sync telephony state → callStore
+  // ── Sync telephony state → callStore ───────────────────────
   useEffect(() => {
-    if (telCallState === 'in_progress' && callStatus !== 'active') {
-      startCall()
-    }
-    if (telCallState === 'completed' && callStatus === 'active') {
-      endCall()
-    }
+    if (telCallState === 'in_progress' && callStatus !== 'active') startCall()
+    if (telCallState === 'completed'   && callStatus === 'active')  endCall()
   }, [telCallState])
+
+  // ── Wrap-up countdown → advance to next contact ────────────
+  useEffect(() => {
+    if (!wrapup) return
+
+    if (wrapup.countdown > 0) {
+      const timer = setTimeout(
+        () => setWrapup(w => w ? { ...w, countdown: w.countdown - 1 } : null),
+        1000,
+      )
+      return () => clearTimeout(timer)
+    }
+
+    // Countdown hit 0
+    const mode = wrapup.mode
+    setWrapup(null)
+    // Power / predictive in VoIP → auto-dial the new contact
+    if ((mode === 'power' || mode === 'predictive') && isVoip && deviceReady) {
+      autoDialRef.current = true
+    }
+    requestNextContact()
+  }, [wrapup])
+
+  // ── Auto-dial: fires when new contact loads after countdown ─
+  useEffect(() => {
+    if (!autoDialRef.current || !contact || isCallActive) return
+    autoDialRef.current = false
+    handleStartCall()
+  }, [contact])
 
   // ── Handlers ───────────────────────────────────────────────
 
   async function handleStartCall() {
     const dialNumber = contact?.phone_e164 || contact?.phone
     if (isVoip && dialNumber) {
-      // VoIP: browser-initiated call via provider SDK
       await makeCall(dialNumber)
     } else {
-      // Manual: agent already dialed on own phone
       startCall()
     }
   }
 
   async function handleHangup() {
-    if (isVoip) {
-      await hangup()
-    }
+    if (isVoip) await hangup()
     endCall()
   }
 
   async function handleCompleteCall(selectedOutcome) {
     if (!contact || !campaign) return
-    await completeCall({
+    const res = await completeCall({
       contact_id:   contact.id,
       campaign_id:  campaign.id,
       outcome:      selectedOutcome,
@@ -92,11 +122,13 @@ export default function PhoneTab({ onTabChange }) {
     })
     setOutcome('')
     resetCall()
-    onTabChange?.('map')
-  }
 
-  function handleDtmf(digit) {
-    sendDtmf(digit)
+    const ad = res?.auto_dial
+    if (ad) {
+      setWrapup({ mode: ad.mode, countdown: ad.wrapup_sec })
+    } else {
+      onTabChange?.('map')
+    }
   }
 
   // ── Styles ─────────────────────────────────────────────────
@@ -114,7 +146,7 @@ export default function PhoneTab({ onTabChange }) {
     btnWarn:  { background: '#d69e2e', color: '#fff', border: 'none' },
     btnActive:{ background: '#38a169', color: '#fff', border: 'none' },
     outcomes: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 },
-    ob:       (sel) => ({
+    ob:   (sel) => ({
       padding: '5px 10px', borderRadius: 7, border: '0.5px solid var(--color-border-secondary)',
       fontSize: 11, cursor: 'pointer',
       background: sel ? 'var(--color-background-success)' : 'var(--color-background-primary)',
@@ -126,13 +158,43 @@ export default function PhoneTab({ onTabChange }) {
     error:    { padding: '6px 10px', borderRadius: 6, background: '#fed7d7', color: '#c53030', fontSize: 11, marginBottom: 8 },
   }
 
-  // ── Waiting state ──────────────────────────────────────────
+  // ── Waiting between contacts (rate limit) ──────────────────
   if (waitSeconds > 0) {
     return (
       <div style={s.wrap}>
         <div style={s.card}>
           <div style={s.timer}>{fmt(waitSeconds)}</div>
           <div style={s.tlab}>Wachttijd tussen contacten</div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Wrap-up countdown (power / progressive / predictive) ───
+  if (wrapup) {
+    const cancelable = wrapup.mode === 'progressive'
+    return (
+      <div style={s.wrap}>
+        <div style={{ ...s.card, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            {MODE_LABEL[wrapup.mode] || wrapup.mode} modus — wrap-up
+          </div>
+          <div style={{ ...s.timer, color: wrapup.countdown <= 3 ? '#c53030' : 'var(--color-text-primary)' }}>
+            {wrapup.countdown}s
+          </div>
+          <div style={s.tlab}>
+            {wrapup.mode === 'progressive'
+              ? 'Volgend contact laadt automatisch…'
+              : 'Volgende oproep start automatisch…'}
+          </div>
+          {cancelable && (
+            <button style={s.btn} onClick={() => { setWrapup(null); autoDialRef.current = false }}>
+              Annuleren
+            </button>
+          )}
+        </div>
+        <div style={s.card}>
+          <ScriptPrompter />
         </div>
       </div>
     )
@@ -158,8 +220,8 @@ export default function PhoneTab({ onTabChange }) {
   return (
     <div style={s.wrap}>
       <div style={s.card}>
-        {/* Provider badge */}
-        <div style={{ textAlign: 'center' }}>
+        {/* Provider + mode badge */}
+        <div style={{ textAlign: 'center', display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 4 }}>
           <span style={{
             ...s.badge,
             background: isVoip ? '#ebf8ff' : '#fefcbf',
@@ -167,6 +229,11 @@ export default function PhoneTab({ onTabChange }) {
           }}>
             {isVoip ? `☎ ${provider.toUpperCase()} SOFTPHONE` : '📱 HANDMATIG BELLEN'}
           </span>
+          {campaign?.dialing_mode && campaign.dialing_mode !== 'preview' && (
+            <span style={{ ...s.badge, background: '#f0fdf4', color: '#166534' }}>
+              {MODE_LABEL[campaign.dialing_mode] || campaign.dialing_mode}
+            </span>
+          )}
         </div>
 
         {/* Error display */}
@@ -216,48 +283,26 @@ export default function PhoneTab({ onTabChange }) {
             <div style={s.timer}>{fmt(callDurationSec)}</div>
             <div style={s.tlab}>Gesprek actief</div>
 
-            {/* VoIP call controls */}
             {isVoip && (
               <div style={{ ...s.ctrls, marginBottom: 10 }}>
-                <button
-                  style={{ ...s.btn, ...(isMuted ? s.btnWarn : {}) }}
-                  onClick={() => isMuted ? unmute() : mute()}
-                  title={isMuted ? 'Unmute' : 'Mute'}
-                >
+                <button style={{ ...s.btn, ...(isMuted ? s.btnWarn : {}) }} onClick={() => isMuted ? unmute() : mute()}>
                   {isMuted ? '🔇 Mute uit' : '🔇 Mute'}
                 </button>
-
-                <button
-                  style={{ ...s.btn, ...(isOnHold ? s.btnWarn : {}) }}
-                  onClick={() => isOnHold ? unhold() : hold()}
-                  title={isOnHold ? 'Uit de wacht halen' : 'In de wacht zetten'}
-                >
+                <button style={{ ...s.btn, ...(isOnHold ? s.btnWarn : {}) }} onClick={() => isOnHold ? unhold() : hold()}>
                   {isOnHold ? '⏸ Wacht uit' : '⏸ Wacht'}
                 </button>
-
-                <button
-                  style={{ ...s.btn, ...(isRecording ? s.btnActive : {}) }}
-                  onClick={() => isRecording ? stopRecording() : startRecording()}
-                  title={isRecording ? 'Opname stoppen' : 'Opname starten'}
-                >
+                <button style={{ ...s.btn, ...(isRecording ? s.btnActive : {}) }} onClick={() => isRecording ? stopRecording() : startRecording()}>
                   {isRecording ? '⏺ Opname stoppen' : '⏺ Opnemen'}
                 </button>
-
-                <button
-                  style={{ ...s.btn, ...(showDtmf ? s.btnActive : {}) }}
-                  onClick={() => setShowDtmf(!showDtmf)}
-                  title="Toetsenbord"
-                >
+                <button style={{ ...s.btn, ...(showDtmf ? s.btnActive : {}) }} onClick={() => setShowDtmf(!showDtmf)}>
                   ⌨ Toetsen
                 </button>
-
                 <button style={{ ...s.btn, ...s.btnD }} onClick={handleHangup}>
                   📵 Ophangen
                 </button>
               </div>
             )}
 
-            {/* Manual mode: simple end button */}
             {!isVoip && (
               <div style={{ ...s.ctrls, marginBottom: 10 }}>
                 <button style={{ ...s.btn, ...s.btnD }} onClick={handleHangup}>
@@ -266,21 +311,17 @@ export default function PhoneTab({ onTabChange }) {
               </div>
             )}
 
-            {/* DTMF keypad (VoIP only) */}
             {isVoip && showDtmf && (
               <div style={s.dtmfGrid}>
                 {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
-                  <button key={d} style={s.dtmfBtn} onClick={() => handleDtmf(d)}>
-                    {d}
-                  </button>
+                  <button key={d} style={s.dtmfBtn} onClick={() => sendDtmf(d)}>{d}</button>
                 ))}
               </div>
             )}
 
-            {/* Call outcomes */}
             <div style={s.ct}>Resultaat gesprek</div>
             <div style={s.outcomes}>
-              {['interested', 'callback', 'not_interested', 'voicemail', 'wrong_number', 'no_answer'].map(o => (
+              {['interested','callback','not_interested','voicemail','wrong_number','no_answer'].map(o => (
                 <button key={o} style={s.ob(outcome === o)} onClick={() => setOutcome(o)}>
                   {o.replace(/_/g, ' ')}
                 </button>
