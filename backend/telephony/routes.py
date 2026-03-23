@@ -21,11 +21,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from auth.jwt_validator import get_current_agent
 from auth.role_guard import require_role
 from db import get_supabase
 from .factory import get_provider, get_available_providers, encrypt_credentials
-from .base import TelephonyCredentials, CallState
+from .base import TelephonyCredentials
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["telephony"])
@@ -209,7 +208,7 @@ async def unmute_call(body: CallControlRequest, deps=Depends(_get_org_provider))
 @router.post("/call/dtmf")
 async def send_dtmf(body: DtmfRequest, deps=Depends(_get_org_provider)):
     provider, agent, db = deps
-    result = await provider.send_dtmf(body.call_id, body.digits)
+    await provider.send_dtmf(body.call_id, body.digits)
     return {"status": "ok"}
 
 
@@ -232,7 +231,7 @@ async def start_recording(body: CallControlRequest, deps=Depends(_get_org_provid
 @router.post("/call/record/stop")
 async def stop_recording(body: CallControlRequest, deps=Depends(_get_org_provider)):
     provider, agent, db = deps
-    result = await provider.stop_recording(body.call_id)
+    await provider.stop_recording(body.call_id)
     return {"status": "ok"}
 
 
@@ -245,44 +244,69 @@ async def webhook_voice(request: Request, db=Depends(get_supabase)):
     """
     Voice webhook — provider calls this when a call connects.
     Must return voice instructions (TwiML for Twilio, etc.).
+    IMPORTANT: This must ALWAYS return valid XML — never JSON.
+    Twilio interprets any non-XML response as "application error".
     """
-    form = await request.form()
-    body = dict(form)
-
-    call_sid   = body.get("CallSid", "")
-    from_field = body.get("From", "")
-    to_number  = body.get("To", "")
-
-    # Ensure E.164 format (+XXXXXXXXXXX) — stored numbers are digits-only
-    if to_number and not to_number.startswith("+") and not to_number.startswith("client:"):
-        to_number = f"+{to_number}"
-
-    org_id = None
-
-    # Browser-initiated calls: From = "client:<agent_uuid>"
-    # The CallSid is new and not yet in call_logs — look up org via the agent profile.
-    if from_field.startswith("client:"):
-        agent_id = from_field[len("client:"):]
-        profile = db.table("user_profiles").select("org_id").eq("id", agent_id).single().execute()
-        if profile.data:
-            org_id = profile.data["org_id"]
-
-    # Server-initiated calls: CallSid is already in call_logs
-    if not org_id and call_sid:
-        call_log = db.table("call_logs").select("org_id").eq("call_sid", call_sid).single().execute()
-        if call_log.data:
-            org_id = call_log.data["org_id"]
-
-    if not org_id:
-        logger.warning(f"webhook_voice: could not resolve org for CallSid={call_sid} From={from_field}")
+    def _twiml_error(msg: str) -> Response:
         return Response(
-            content="<Response><Say>Call not recognized.</Say></Response>",
+            content=f"<Response><Say>{msg}</Say></Response>",
             media_type="application/xml",
         )
 
-    provider = await get_provider(org_id, db, ENCRYPTION_KEY)
-    twiml = await provider.build_dial_response(to=to_number)
-    return Response(content=twiml, media_type="application/xml")
+    try:
+        form = await request.form()
+        body = dict(form)
+
+        call_sid   = body.get("CallSid", "")
+        from_field = body.get("From", "")
+        to_number  = body.get("To", "")
+
+        # Ensure E.164 format (+XXXXXXXXXXX) — stored numbers are digits-only
+        if to_number and not to_number.startswith("+") and not to_number.startswith("client:"):
+            to_number = f"+{to_number}"
+
+        org_id = None
+
+        # Browser-initiated calls: From = "client:<agent_uuid>"
+        # The CallSid is new and not yet in call_logs — look up org via the agent profile.
+        if from_field.startswith("client:"):
+            agent_id = from_field[len("client:"):]
+            profile = db.table("user_profiles").select("org_id").eq("id", agent_id).single().execute()
+            if profile.data:
+                org_id = profile.data["org_id"]
+
+        # Server-initiated calls: CallSid is already in call_logs
+        if not org_id and call_sid:
+            call_log = db.table("call_logs").select("org_id").eq("call_sid", call_sid).single().execute()
+            if call_log.data:
+                org_id = call_log.data["org_id"]
+
+        if not org_id:
+            logger.warning(f"webhook_voice: could not resolve org for CallSid={call_sid} From={from_field}")
+            return _twiml_error("Call not recognized.")
+
+        # Derive base URL from the request so action URLs are always absolute
+        base_url = f"{request.url.scheme}://{request.url.netloc}"
+
+        provider = await get_provider(org_id, db, ENCRYPTION_KEY)
+        twiml = await provider.build_dial_response(to=to_number, base_url=base_url)
+        return Response(content=twiml, media_type="application/xml")
+
+    except Exception as exc:
+        logger.error(f"webhook_voice exception: {exc}", exc_info=exc)
+        return _twiml_error("An internal error occurred. Please try again.")
+
+
+@router.post("/webhook/dial-complete")
+async def webhook_dial_complete(request: Request):
+    """
+    Called by Twilio when the <Dial> leg ends (callee hangs up).
+    We just hang up the caller's leg too.
+    """
+    return Response(
+        content="<Response><Hangup/></Response>",
+        media_type="application/xml",
+    )
 
 
 @router.post("/webhook/status")
@@ -362,13 +386,6 @@ async def webhook_recording(request: Request, db=Depends(get_supabase)):
     return {"status": "ok"}
 
 
-@router.post("/webhook/dial-complete")
-async def webhook_dial_complete(request: Request, db=Depends(get_supabase)):
-    """Handle the end of a <Dial> verb."""
-    form = await request.form()
-    body = dict(form)
-    # The call has ended — just acknowledge
-    return Response(content="<Response></Response>", media_type="application/xml")
 
 
 # ── 6. Admin: setup & manage telephony ────────────────────────
