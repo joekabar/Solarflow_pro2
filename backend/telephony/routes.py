@@ -253,6 +253,10 @@ async def webhook_voice(request: Request, db=Depends(get_supabase)):
     from_field = body.get("From", "")
     to_number  = body.get("To", "")
 
+    # Ensure E.164 format (+XXXXXXXXXXX) — stored numbers are digits-only
+    if to_number and not to_number.startswith("+") and not to_number.startswith("client:"):
+        to_number = f"+{to_number}"
+
     org_id = None
 
     # Browser-initiated calls: From = "client:<agent_uuid>"
