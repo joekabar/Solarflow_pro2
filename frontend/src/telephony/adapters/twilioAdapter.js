@@ -116,9 +116,26 @@ export async function createTwilioDevice(token, handlers) {
 function wrapConnection(call, handlers) {
   const { onConnect, onDisconnect, onCallState } = handlers
 
+  // Build the normalized connection object first so we can pass it to onConnect.
+  // Using getters ensures callId/parameters are always up-to-date (CallSid may
+  // not be populated until the call is accepted).
+  const conn = {
+    get callId()      { return call.parameters?.CallSid || null },
+    get parameters()  { return call.parameters || {} },
+
+    accept:      ()           => call.accept(),
+    reject:      ()           => call.reject(),
+    disconnect:  ()           => call.disconnect(),
+    mute:        (shouldMute) => call.mute(shouldMute),
+    sendDigits:  (digits)     => call.sendDigits(digits),
+    status:      ()           => call.status(),
+    _raw: call,
+  }
+
   // Map Twilio call events → normalized states
   call.on('accept', () => {
-    onConnect?.({ callId: call.parameters?.CallSid })
+    // Pass the full conn object so connectionRef keeps its disconnect/mute/etc.
+    onConnect?.(conn)
     onCallState?.('in_progress')
   })
 
@@ -146,32 +163,5 @@ function wrapConnection(call, handlers) {
     onCallState?.('ringing')
   })
 
-  // Return normalized connection
-  return {
-    callId: call.parameters?.CallSid,
-
-    // Accept an incoming call
-    accept: () => call.accept(),
-
-    // Reject an incoming call
-    reject: () => call.reject(),
-
-    // Disconnect (hang up)
-    disconnect: () => call.disconnect(),
-
-    // Mute/unmute the microphone
-    mute: (shouldMute) => call.mute(shouldMute),
-
-    // Send DTMF tones
-    sendDigits: (digits) => call.sendDigits(digits),
-
-    // Get call status
-    status: () => call.status(),
-
-    // Access parameters (From, To, CallSid, etc.)
-    parameters: call.parameters || {},
-
-    // Raw Twilio Call for advanced usage
-    _raw: call,
-  }
+  return conn
 }
