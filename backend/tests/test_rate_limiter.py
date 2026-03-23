@@ -6,7 +6,7 @@ Run with: cd backend && pytest tests/ -v
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 from datetime import datetime, timezone, timedelta
 
 

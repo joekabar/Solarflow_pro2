@@ -8,7 +8,7 @@ Calling hours use Europe/Brussels timezone.
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from auth.role_guard import require_role

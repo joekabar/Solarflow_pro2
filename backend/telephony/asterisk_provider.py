@@ -17,16 +17,11 @@ Dependencies (when implementing):
 """
 
 import logging
-from typing import Optional, Dict, Any
 
 from .base import (
     TelephonyProvider,
     TelephonyCredentials,
     AccessTokenResult,
-    CallResult,
-    CallbackEvent,
-    CallState,
-    CallDirection,
 )
 
 logger = logging.getLogger(__name__)

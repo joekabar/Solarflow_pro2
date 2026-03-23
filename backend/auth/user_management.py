@@ -63,16 +63,8 @@ async def invite_user(
     if body.role not in valid_roles:
         raise HTTPException(400, f"Ongeldige rol. Kies uit: {', '.join(valid_roles)}")
 
-    # Check if email already exists in this org
-    try:
-        existing = db.table("user_profiles") \
-            .select("id") \
-            .eq("org_id", agent.org_id) \
-            .execute()
-        # We can't check email in user_profiles (no email column),
-        # but Supabase auth will reject duplicate emails
-    except Exception:
-        pass
+    # We can't check email in user_profiles (no email column);
+    # Supabase auth will reject duplicate emails at creation time.
 
     # Create auth user in Supabase
     try:

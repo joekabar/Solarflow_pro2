@@ -258,7 +258,7 @@ async def list_all_users(
             .select("*, organizations(name, plan, display_name, logo_url, primary_color)") \
             .order("created_at", desc=True).execute()
         return {"users": users.data or []}
-    except Exception as e:
+    except Exception:
         raise HTTPException(500, "Fout bij ophalen gebruikers")
 
 
@@ -319,7 +319,7 @@ async def update_any_user(
     try:
         result = db.table("user_profiles").update(updates).eq("id", user_id).execute()
         return {"status": "ok", "user": result.data[0] if result.data else None}
-    except Exception as e:
+    except Exception:
         raise HTTPException(500, "Bijwerken mislukt")
 
 
@@ -355,7 +355,7 @@ async def extend_trial(
         return {"status": "ok", "new_trial_ends_at": new_end.isoformat(), "days_added": body.days}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(500, "Trial verlengen mislukt")
 
 
@@ -371,8 +371,10 @@ async def platform_stats(
         users = db.table("user_profiles").select("id, role, is_active").execute()
         contacts = db.table("contacts").select("id, status").execute()
         calls = db.table("call_logs").select("id, outcome").execute()
-        org_data = orgs.data or []; user_data = users.data or []
-        contact_data = contacts.data or []; call_data = calls.data or []
+        org_data = orgs.data or []
+        user_data = users.data or []
+        contact_data = contacts.data or []
+        call_data = calls.data or []
         return {
             "organizations": {
                 "total": len(org_data),
