@@ -28,13 +28,27 @@ VALUES (
   'Sales Team Alpha'
 ) ON CONFLICT (id) DO NOTHING;
 
--- 3. Link your auth user to the org (uncomment and replace UUID)
--- UPDATE public.user_profiles SET
---   org_id    = '00000000-0000-0000-0000-000000000001',
---   team_id   = '00000000-0000-0000-0000-000000000010',
---   role      = 'admin',
---   full_name = 'Jochen Sacre'
--- WHERE id = '<your-auth-user-uuid>';
+-- 3. Create your admin user profile
+--
+--    STEP A: Sign up (or add a user) via Supabase Dashboard
+--            → Authentication → Users → "Add user"
+--
+--    STEP B: Copy your UUID from the "User UID" column
+--            It looks like: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+--            Do NOT use your email address — the id column is a UUID.
+--
+--    STEP C: Uncomment the INSERT below, paste your UUID, and run it
+--            in the Supabase SQL Editor (it runs as service role,
+--            so RLS is bypassed automatically).
+--
+-- INSERT INTO public.user_profiles (id, org_id, team_id, role, full_name)
+-- VALUES (
+--   'paste-your-uuid-here',                      -- ← UUID from step B
+--   '00000000-0000-0000-0000-000000000001',       -- demo org
+--   '00000000-0000-0000-0000-000000000010',       -- Sales Team Alpha
+--   'admin',
+--   'Jochen Sacre'
+-- );
 
 -- 4. Create demo campaign
 INSERT INTO public.campaigns (
