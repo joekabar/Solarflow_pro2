@@ -1,0 +1,88 @@
+"""
+backend/auth/session_manager.py
+─────────────────────────────────
+Login, logout, and token refresh.
+"""
+
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel, EmailStr
+from db import get_supabase
+
+router = APIRouter()
+
+
+class LoginRequest(BaseModel):
+    email:    EmailStr
+    password: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/login")
+async def login(body: LoginRequest, db=Depends(get_supabase)):
+    try:
+        response = db.auth.sign_in_with_password({
+            "email":    body.email,
+            "password": body.password,
+        })
+    except Exception:
+        raise HTTPException(401, "Ongeldig e-mailadres of wachtwoord")
+
+    user    = response.user
+    session = response.session
+
+    try:
+        profile = db.table("user_profiles")\
+            .select("role, full_name, org_id, team_id, organizations(name, plan, trial_ends_at, contact_interval_sec, is_active)")\
+            .eq("id", user.id)\
+            .single()\
+            .execute()
+    except Exception as e:
+        print(f"[login] Profile load error: {e}")
+        raise HTTPException(403, "Account niet volledig ingesteld — neem contact op met uw admin")
+
+    if not profile.data:
+        raise HTTPException(403, "Account niet volledig ingesteld — neem contact op met uw admin")
+
+    p   = profile.data
+    org = p["organizations"]
+
+    return {
+        "access_token":  session.access_token,
+        "refresh_token": session.refresh_token,
+        "user": {
+            "id":                   user.id,
+            "email":                user.email,
+            "full_name":            p["full_name"],
+            "role":                 p["role"],
+            "org_id":               p["org_id"],
+            "team_id":              p.get("team_id"),
+            "org_name":             org["name"],
+            "plan":                 org["plan"],
+            "trial_ends_at":        org.get("trial_ends_at"),
+            "contact_interval_sec": org.get("contact_interval_sec", 45),
+        }
+    }
+
+
+@router.post("/refresh")
+async def refresh_token(body: RefreshRequest, db=Depends(get_supabase)):
+    try:
+        response = db.auth.refresh_session(body.refresh_token)
+        return {
+            "access_token":  response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+        }
+    except Exception:
+        raise HTTPException(401, "Refresh token ongeldig of verlopen — log opnieuw in")
+
+
+@router.post("/logout")
+async def logout(db=Depends(get_supabase)):
+    try:
+        db.auth.sign_out()
+    except Exception:
+        pass
+    return {"message": "Uitgelogd"}
